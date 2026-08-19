@@ -291,13 +291,68 @@ a:hover { text-decoration: underline; }
 .dd-actions button:hover { border-color: var(--ink-3); }
 .dd-actions .dd-ok:hover { background: var(--sea-hover); border-color: var(--sea-hover); }
 
-/* Small dropdown for panel controls */
+/* Small dropdown for panel controls (kept for future use) */
 .dd-trigger.dd-small {
   padding: 6px 10px;
   font-size: 12px;
   min-height: 30px;
   width: auto;
   min-width: 90px;
+}
+
+/* Count input untuk Top/Low */
+.count-hint {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.count-input {
+  background: var(--bone-2);
+  border: 0.5px solid var(--line-2);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  width: 60px;
+  min-height: 30px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.count-input:focus {
+  outline: none;
+  border-color: var(--sea);
+  box-shadow: 0 0 0 3px var(--sea-2);
+}
+
+/* Status grid di Pengaturan */
+.status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bone);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-top: 8px;
+}
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+  border-top: 0.5px solid var(--line);
+  gap: 12px;
+}
+.status-row:first-child { border-top: none; }
+.status-row > span:first-child { color: var(--ink-2); }
+.status-row > span:last-child {
+  color: var(--ink);
+  font-weight: 500;
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== METRICS ===== */
@@ -509,6 +564,70 @@ a:hover { text-decoration: underline; }
 .setting-status.error { background: #FBEAE8; color: var(--danger); }
 .setting-status.success { background: #E6F4EA; color: #1E7B36; }
 
+/* ===== INFO PANEL (di Pengaturan) ===== */
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bone);
+  border-radius: 8px;
+  padding: 4px 12px;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 13px;
+  border-top: 0.5px solid var(--line);
+  gap: 12px;
+}
+.info-row:first-child { border-top: none; }
+.info-key { color: var(--ink-2); }
+.info-val { color: var(--ink); font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ===== NUMBER INPUT (top/low count) ===== */
+.num-input {
+  width: 56px;
+  height: 30px;
+  background: var(--bone-2);
+  border: 0.5px solid var(--line-2);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.num-input:focus {
+  outline: none;
+  border-color: var(--sea);
+  box-shadow: 0 0 0 3px var(--sea-2);
+}
+.num-input::-webkit-inner-spin-button,
+.num-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* ===== SINGLE BRANCH NOTE ===== */
+.single-branch-note {
+  background: var(--sea-2);
+  color: var(--sea);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* ===== BTN AS LINK ===== */
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--ink);
+}
+a.btn:hover { text-decoration: none; }
+
 /* ===== TOAST ===== */
 .toast {
   position: fixed;
@@ -544,6 +663,7 @@ a:hover { text-decoration: underline; }
   .panel { padding: 14px 14px; }
   .chart-wrap { height: 200px; }
   .panel-controls .dd-trigger.dd-small { min-width: 78px; font-size: 11px; }
+  .panel-controls .num-input { width: 50px; height: 28px; font-size: 12px; }
 }
 
 @media (max-width: 400px) {
