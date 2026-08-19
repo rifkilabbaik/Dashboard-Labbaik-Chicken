@@ -1,19 +1,26 @@
 // ============================================================================
-// APLIKASI UTAMA — v2
+// APLIKASI UTAMA — v3
 // ============================================================================
 
+const CHANNELS_ORDER = ['DINE IN','TAKE AWAY','GRABFOOD','GOFOOD','SHOPEE FOOD','BAZAR','CATERING','ESB Order Delivery','ESB Order Pickup','PAKAR'];
+
 const App = {
-  data: [],           // Data sales
-  regional: [],       // Data regional/area/branch mapping
-  filtered: [],       // Data setelah filter
-  branchMeta: {},     // branch -> {regional, area}
-  activeBranches: [], // Branches yang ada di sheet Regional (aktif)
+  data: [],
+  regional: [],
+  filtered: [],
+  branchMeta: {},        // branch -> {regional, area}
+  activeBranches: [],    // Semua branch di sheet Regional
+  areaToRegional: {},    // area -> regional
+  regionalToAreas: {},   // regional -> [areas]
+  regionalToBranches: {},// regional -> [branches]
+  areaToBranches: {},    // area -> [branches]
   trendChart: null,
-  trendDates: [],     // ISO date strings untuk tooltip chart
+  trendDates: [],
   moneyFormat: 'auto',
   topGroup: 'branch', topCount: 5,
   lowGroup: 'branch', lowCount: 5,
-  dd: {}, // dropdown instances
+  dd: {},
+  _suppressCascade: false,
 
   async init() {
     this._loadSettings();
@@ -22,8 +29,9 @@ const App = {
     this._bindSettingsModal();
     this._bindPullToRefresh();
     this._bindWindowFocus();
+    this._bindTopLowInputs();
     this._initDropdowns();
-    this._setPeriode('current', /*silent*/ true);
+    this._setPeriode('current');
     await this.loadData();
   },
 
@@ -32,6 +40,8 @@ const App = {
   // ==========================================================================
   _loadSettings() {
     this.moneyFormat = localStorage.getItem('moneyFormat') || 'auto';
+    // Legacy formats fallback ke auto
+    if (this.moneyFormat !== 'auto' && this.moneyFormat !== 'full') this.moneyFormat = 'auto';
     this.topCount = parseInt(localStorage.getItem('topCount')) || 5;
     this.lowCount = parseInt(localStorage.getItem('lowCount')) || 5;
     this.topGroup = localStorage.getItem('topGroup') || 'branch';
@@ -40,18 +50,11 @@ const App = {
   _saveSetting(k, v) { localStorage.setItem(k, v); },
 
   // ==========================================================================
-  // TOPBAR & INTERACTIONS
+  // TOPBAR
   // ==========================================================================
   _bindTopbar() {
     document.getElementById('topbarLeft').addEventListener('click', () => this.loadData());
     document.getElementById('btnSettings').addEventListener('click', () => this._openSettings());
-
-    const link = document.getElementById('linkSheet');
-    if (CONFIG.SHEET_URL && !CONFIG.SHEET_URL.startsWith('PASTE')) {
-      link.href = CONFIG.SHEET_URL;
-    } else {
-      link.style.display = 'none';
-    }
   },
 
   _bindDateInputs() {
@@ -67,20 +70,32 @@ const App = {
     });
   },
 
+  _bindTopLowInputs() {
+    const numTop = document.getElementById('numTopCount');
+    const numLow = document.getElementById('numLowCount');
+    numTop.value = this.topCount;
+    numLow.value = this.lowCount;
+    const handler = (input, isTop) => {
+      let v = parseInt(input.value) || 5;
+      if (v < 1) v = 1;
+      if (v > 100) v = 100;
+      input.value = v;
+      if (isTop) { this.topCount = v; this._saveSetting('topCount', v); }
+      else { this.lowCount = v; this._saveSetting('lowCount', v); }
+      this._renderRanks();
+    };
+    numTop.addEventListener('change', () => handler(numTop, true));
+    numLow.addEventListener('change', () => handler(numLow, false));
+  },
+
   _bindPullToRefresh() {
     const indicator = document.getElementById('ptrIndicator');
     let startY = 0, pulling = false;
     const threshold = 70;
-
     document.addEventListener('touchstart', (e) => {
-      if (window.scrollY === 0) {
-        startY = e.touches[0].pageY;
-        pulling = true;
-      } else {
-        pulling = false;
-      }
+      if (window.scrollY === 0) { startY = e.touches[0].pageY; pulling = true; }
+      else pulling = false;
     }, { passive: true });
-
     document.addEventListener('touchmove', (e) => {
       if (!pulling) return;
       const delta = e.touches[0].pageY - startY;
@@ -91,7 +106,6 @@ const App = {
           ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
       }
     }, { passive: true });
-
     document.addEventListener('touchend', (e) => {
       if (!pulling) return;
       const delta = (e.changedTouches[0].pageY - startY);
@@ -104,15 +118,13 @@ const App = {
       } else {
         indicator.style.height = '0';
       }
-      pulling = false;
-      startY = 0;
+      pulling = false; startY = 0;
     });
   },
 
   _bindWindowFocus() {
     let lastLoad = Date.now();
     window.addEventListener('focus', () => {
-      // Auto-refresh kalau tab tidak aktif > 30 detik
       if (Date.now() - lastLoad > 30000) {
         this.loadData();
         lastLoad = Date.now();
@@ -126,15 +138,15 @@ const App = {
   _initDropdowns() {
     this.dd.regional = new Dropdown(document.getElementById('ddRegional'), {
       items: [], value: '', allLabel: 'Semua Regional', placeholder: 'Cari regional...',
-      onChange: (v) => { this._updateAreaOptions(); this._updateBranchOptions(); this._applyFilters(); }
+      onChange: (v) => this._onRegionalChange(v)
     });
     this.dd.area = new Dropdown(document.getElementById('ddArea'), {
       items: [], value: '', allLabel: 'Semua Area', placeholder: 'Cari area...',
-      onChange: (v) => { this._updateBranchOptions(); this._applyFilters(); }
+      onChange: (v) => this._onAreaChange(v)
     });
     this.dd.branch = new Dropdown(document.getElementById('ddBranch'), {
       items: [], value: '', allLabel: 'Semua Toko', placeholder: 'Cari nama toko...',
-      onChange: () => this._applyFilters()
+      onChange: (v) => this._onBranchChange(v)
     });
     this.dd.channel = new Dropdown(document.getElementById('ddChannel'), {
       items: CONFIG.CHANNELS.map(c => ({ value: c, label: CONFIG.CHANNEL_DISPLAY[c] || c })),
@@ -150,57 +162,169 @@ const App = {
         { value: 'custom', label: 'Rentang khusus' }
       ],
       value: 'current', allLabel: 'Bulan berjalan',
-      onChange: (v) => {
-        this._setPeriode(v, /*silent*/ false);
-        this._applyFilters();
-      }
+      onChange: (v) => { this._setPeriode(v); this._applyFilters(); }
     });
 
-    // Top/Low controls
-    const countItems = [3, 5, 10, 20].map(n => ({ value: String(n), label: 'Top ' + n }));
-    const countItemsLow = [3, 5, 10, 20].map(n => ({ value: String(n), label: 'Low ' + n }));
-    const groupItems = [
-      { value: 'branch', label: 'Per toko' },
-      { value: 'area', label: 'Per area' },
-      { value: 'regional', label: 'Per regional' }
-    ];
-
+    // Top/Low group — items dinamis, akan di-update saat filter berubah
     this.dd.topGroup = new Dropdown(document.getElementById('ddTopGroup'), {
-      items: groupItems, value: this.topGroup, allLabel: 'Per toko',
+      items: [], value: this.topGroup, allLabel: 'Per toko',
       onChange: (v) => { this.topGroup = v; this._saveSetting('topGroup', v); this._renderRanks(); }
     });
-    this.dd.topCount = new Dropdown(document.getElementById('ddTopCount'), {
-      items: countItems, value: String(this.topCount), allLabel: 'Top 5',
-      onChange: (v) => { this.topCount = parseInt(v); this._saveSetting('topCount', v); this._renderRanks(); }
-    });
     this.dd.lowGroup = new Dropdown(document.getElementById('ddLowGroup'), {
-      items: groupItems, value: this.lowGroup, allLabel: 'Per toko',
+      items: [], value: this.lowGroup, allLabel: 'Per toko',
       onChange: (v) => { this.lowGroup = v; this._saveSetting('lowGroup', v); this._renderRanks(); }
-    });
-    this.dd.lowCount = new Dropdown(document.getElementById('ddLowCount'), {
-      items: countItemsLow, value: String(this.lowCount), allLabel: 'Low 5',
-      onChange: (v) => { this.lowCount = parseInt(v); this._saveSetting('lowCount', v); this._renderRanks(); }
     });
   },
 
   // ==========================================================================
-  // PERIODE ↔ DATES
+  // CASCADING FILTER LOGIC
   // ==========================================================================
-  _setPeriode(mode, silent) {
+  _onRegionalChange(v) {
+    if (this._suppressCascade) return;
+    if (!v) {
+      // Semua Regional → reset area & branch ke semua
+      this._suppressCascade = true;
+      this.dd.area.setValue('');
+      this.dd.branch.setValue('');
+      this._suppressCascade = false;
+    } else {
+      // Kalau area/branch yang dipilih tidak dalam regional baru, reset
+      const area = this.dd.area.getValue();
+      const branch = this.dd.branch.getValue();
+      this._suppressCascade = true;
+      if (area && this.areaToRegional[area] !== v) this.dd.area.setValue('');
+      if (branch) {
+        const meta = this.branchMeta[branch];
+        if (!meta || meta.regional !== v) this.dd.branch.setValue('');
+      }
+      this._suppressCascade = false;
+    }
+    this._refreshDropdownOptions();
+    this._applyFilters();
+  },
+
+  _onAreaChange(v) {
+    if (this._suppressCascade) return;
+    if (v) {
+      // Auto-set regional ke regional area ini
+      const parentRegional = this.areaToRegional[v];
+      this._suppressCascade = true;
+      if (parentRegional && this.dd.regional.getValue() !== parentRegional) {
+        this.dd.regional.setValue(parentRegional);
+      }
+      // Kalau branch yang dipilih tidak dalam area baru, reset
+      const branch = this.dd.branch.getValue();
+      if (branch) {
+        const meta = this.branchMeta[branch];
+        if (!meta || meta.area !== v) this.dd.branch.setValue('');
+      }
+      this._suppressCascade = false;
+    }
+    this._refreshDropdownOptions();
+    this._applyFilters();
+  },
+
+  _onBranchChange(v) {
+    if (this._suppressCascade) return;
+    if (v) {
+      // Auto-set regional & area ke milik branch ini
+      const meta = this.branchMeta[v];
+      if (meta) {
+        this._suppressCascade = true;
+        if (this.dd.regional.getValue() !== meta.regional) this.dd.regional.setValue(meta.regional);
+        if (this.dd.area.getValue() !== meta.area) this.dd.area.setValue(meta.area);
+        this._suppressCascade = false;
+      }
+    }
+    this._refreshDropdownOptions();
+    this._applyFilters();
+  },
+
+  _refreshDropdownOptions() {
+    // Update area & branch options berdasarkan pilihan sekarang
+    const reg = this.dd.regional.getValue();
+    const area = this.dd.area.getValue();
+
+    let areas = Object.keys(this.regionalToAreas).reduce((acc, r) => {
+      if (!reg || r === reg) acc.push(...this.regionalToAreas[r]);
+      return acc;
+    }, []);
+    areas = Array.from(new Set(areas)).sort();
+    this._suppressCascade = true;
+    this.dd.area.setItems(areas.map(a => ({ value: a, label: a })));
+    this._suppressCascade = false;
+
+    let branches;
+    if (this.regional.length > 0) {
+      branches = this.regional
+        .filter(r => !reg || r.regional === reg)
+        .filter(r => !area || r.area === area)
+        .map(r => r.branch);
+    } else {
+      branches = Array.from(new Set(this.data.map(r => r.branch)));
+    }
+    branches = Array.from(new Set(branches)).sort();
+    this._suppressCascade = true;
+    this.dd.branch.setItems(branches.map(b => ({ value: b, label: this._shortBranch(b) })));
+    this._suppressCascade = false;
+  },
+
+  // ==========================================================================
+  // TOP/LOW GROUP OPTIONS (dinamis)
+  // ==========================================================================
+  _updateTopLowControls() {
+    const reg = this.dd.regional.getValue();
+    const area = this.dd.area.getValue();
+    const branch = this.dd.branch.getValue();
+
+    const wrap = document.getElementById('topLowWrap');
+    const note = document.getElementById('singleBranchNote');
+
+    // Kalau 1 toko dipilih → sembunyikan top/low
+    if (branch) {
+      wrap.hidden = true;
+      note.hidden = false;
+      return;
+    }
+    wrap.hidden = false;
+    note.hidden = true;
+
+    // Build options
+    const groupItems = [];
+    if (!reg && !area) {
+      groupItems.push({ value: 'regional', label: 'Per regional' });
+      groupItems.push({ value: 'area', label: 'Per area' });
+      groupItems.push({ value: 'branch', label: 'Per toko' });
+    } else if (reg && !area) {
+      // Regional spesifik → hanya area & toko
+      groupItems.push({ value: 'area', label: 'Per area' });
+      groupItems.push({ value: 'branch', label: 'Per toko' });
+    } else {
+      // Area spesifik (atau regional+area) → hanya toko
+      groupItems.push({ value: 'branch', label: 'Per toko' });
+    }
+
+    const validVals = groupItems.map(x => x.value);
+    if (!validVals.includes(this.topGroup)) this.topGroup = groupItems[groupItems.length - 1].value;
+    if (!validVals.includes(this.lowGroup)) this.lowGroup = groupItems[groupItems.length - 1].value;
+
+    this.dd.topGroup.setItems(groupItems);
+    this.dd.topGroup.setValue(this.topGroup);
+    this.dd.lowGroup.setItems(groupItems);
+    this.dd.lowGroup.setValue(this.lowGroup);
+  },
+
+  // ==========================================================================
+  // PERIODE
+  // ==========================================================================
+  _setPeriode(mode) {
     const now = new Date();
     let from, to = now;
-    if (mode === 'current') {
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (mode === 'last') {
-      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      to = new Date(now.getFullYear(), now.getMonth(), 0);
-    } else if (mode === 'last7') {
-      from = new Date(now); from.setDate(from.getDate() - 6);
-    } else if (mode === 'last30') {
-      from = new Date(now); from.setDate(from.getDate() - 29);
-    } else {
-      return; // custom, biarkan user pilih
-    }
+    if (mode === 'current') from = new Date(now.getFullYear(), now.getMonth(), 1);
+    else if (mode === 'last') { from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); }
+    else if (mode === 'last7') { from = new Date(now); from.setDate(from.getDate() - 6); }
+    else if (mode === 'last30') { from = new Date(now); from.setDate(from.getDate() - 29); }
+    else return;
     document.getElementById('fFrom').value = this._toDateInput(from);
     document.getElementById('fTo').value = this._toDateInput(to);
   },
@@ -213,7 +337,7 @@ const App = {
   // LOAD DATA
   // ==========================================================================
   async loadData() {
-    document.getElementById('lastUpdate').textContent = 'Memuat data...';
+    this._showStatus('Memuat data...');
     try {
       const [sales, regional] = await Promise.all([
         Sheets.fetchAll(),
@@ -225,67 +349,50 @@ const App = {
       this._populateFilters();
       this._autoAdjustFilter();
       this._applyFilters();
-
-      if (this.data.length === 0) {
-        document.getElementById('lastUpdate').textContent = 'Sheet Sales kosong · isi data di spreadsheet';
-      } else {
-        const latest = this._latestDate();
-        const dateCount = new Set(this.data.map(r => r.date)).size;
-        const regionalNote = regional.length > 0
-          ? ' · ' + regional.length + ' toko aktif'
-          : ' · Regional belum diisi (buka Pengaturan)';
-        document.getElementById('lastUpdate').textContent =
-          this._formatDateID(latest) + ' · ' + this.data.length.toLocaleString('id-ID') + ' baris' + regionalNote;
-      }
+      this._hideStatus();
+      this._updateInfoPanel(/*ok*/ true);
     } catch (e) {
-      document.getElementById('lastUpdate').textContent = 'Gagal: ' + e.message;
-      this._toast(e.message);
+      this._showStatus('Gagal: ' + e.message);
+      this._updateInfoPanel(/*ok*/ false, e.message);
     }
+  },
+
+  _showStatus(msg) {
+    const el = document.getElementById('lastUpdate');
+    el.textContent = msg;
+    el.hidden = false;
+  },
+  _hideStatus() {
+    document.getElementById('lastUpdate').hidden = true;
   },
 
   _buildBranchMeta() {
     this.branchMeta = {};
     this.activeBranches = [];
+    this.areaToRegional = {};
+    this.regionalToAreas = {};
+    this.regionalToBranches = {};
+    this.areaToBranches = {};
     this.regional.forEach(r => {
       this.branchMeta[r.branch] = { regional: r.regional, area: r.area };
       this.activeBranches.push(r.branch);
+      this.areaToRegional[r.area] = r.regional;
+      (this.regionalToAreas[r.regional] = this.regionalToAreas[r.regional] || []).push(r.area);
+      (this.regionalToBranches[r.regional] = this.regionalToBranches[r.regional] || []).push(r.branch);
+      (this.areaToBranches[r.area] = this.areaToBranches[r.area] || []).push(r.branch);
+    });
+    // Dedupe areas per regional
+    Object.keys(this.regionalToAreas).forEach(k => {
+      this.regionalToAreas[k] = Array.from(new Set(this.regionalToAreas[k]));
     });
   },
 
-  // ==========================================================================
-  // POPULATE FILTERS
-  // ==========================================================================
   _populateFilters() {
-    // Regional
     const regionals = Array.from(new Set(this.regional.map(r => r.regional))).sort();
+    this._suppressCascade = true;
     this.dd.regional.setItems(regionals.map(r => ({ value: r, label: r })));
-    this._updateAreaOptions();
-    this._updateBranchOptions();
-  },
-
-  _updateAreaOptions() {
-    const selectedReg = this.dd.regional.getValue();
-    let areas = this.regional;
-    if (selectedReg) areas = areas.filter(r => r.regional === selectedReg);
-    const uniq = Array.from(new Set(areas.map(r => r.area))).sort();
-    this.dd.area.setItems(uniq.map(a => ({ value: a, label: a })));
-  },
-
-  _updateBranchOptions() {
-    const selectedReg = this.dd.regional.getValue();
-    const selectedArea = this.dd.area.getValue();
-    let branches;
-    if (this.regional.length > 0) {
-      branches = this.regional
-        .filter(r => !selectedReg || r.regional === selectedReg)
-        .filter(r => !selectedArea || r.area === selectedArea)
-        .map(r => r.branch);
-    } else {
-      // Fallback: dari data sales kalau Regional belum diisi
-      branches = Array.from(new Set(this.data.map(r => r.branch)));
-    }
-    const uniq = Array.from(new Set(branches)).sort();
-    this.dd.branch.setItems(uniq.map(b => ({ value: b, label: this._shortBranch(b) })));
+    this._suppressCascade = false;
+    this._refreshDropdownOptions();
   },
 
   _autoAdjustFilter() {
@@ -310,28 +417,24 @@ const App = {
     const reg = this.dd.regional.getValue();
     const area = this.dd.area.getValue();
     const branch = this.dd.branch.getValue();
-    const channels = this.dd.channel.getValue(); // array
+    const channels = this.dd.channel.getValue();
+
+    // Set scope toko yang dianggap "dalam filter" (dari regional mapping)
+    const scopedBranches = this._getScopedBranches();
+    const scopedSet = new Set(scopedBranches);
+    const useMapping = this.regional.length > 0;
 
     this.filtered = this.data.filter(r => {
       if (from && r.date < from) return false;
       if (to && r.date > to) return false;
-
-      // Filter regional/area/branch (jika ada mapping)
-      if (branch) {
-        if (r.branch !== branch) return false;
-      } else if (this.regional.length > 0) {
-        // Kalau ada mapping, filter berdasarkan branch yang ada di Regional
-        const meta = this.branchMeta[r.branch];
-        if (reg || area) {
-          if (!meta) return false;
-          if (reg && meta.regional !== reg) return false;
-          if (area && meta.area !== area) return false;
-        }
+      if (branch) return r.branch === branch;
+      // Kalau ada mapping regional: hanya toko dalam scope yang lolos
+      if (useMapping && (reg || area)) {
+        if (!scopedSet.has(r.branch)) return false;
       }
       return true;
     });
 
-    // Hitung total sesuai channel yang dipilih
     if (channels && channels.length > 0 && channels.length < CONFIG.CHANNELS.length) {
       this.filtered = this.filtered.map(r => ({
         ...r,
@@ -339,7 +442,20 @@ const App = {
       })).filter(r => r.total > 0);
     }
 
+    this._updateTopLowControls();
     this._render();
+  },
+
+  _getScopedBranches() {
+    const reg = this.dd.regional.getValue();
+    const area = this.dd.area.getValue();
+    const branch = this.dd.branch.getValue();
+    if (branch) return [branch];
+    if (this.regional.length === 0) return Array.from(new Set(this.data.map(r => r.branch)));
+    return this.regional
+      .filter(r => !reg || r.regional === reg)
+      .filter(r => !area || r.area === area)
+      .map(r => r.branch);
   },
 
   _render() {
@@ -350,16 +466,17 @@ const App = {
   },
 
   // ==========================================================================
-  // RENDER
+  // METRICS
   // ==========================================================================
   _renderMetrics() {
     const total = this.filtered.reduce((s, r) => s + r.total, 0);
     const days = new Set(this.filtered.map(r => r.date)).size;
     const branchCount = new Set(this.filtered.map(r => r.branch)).size;
-    const totalBranchAll = this.activeBranches.length || new Set(this.data.map(r => r.branch)).size;
+    const scopedBranches = this._getScopedBranches();
+    const totalBranchScoped = scopedBranches.length;
     const avg = days > 0 ? total / days : 0;
 
-    // Growth vs periode sebelumnya
+    // Growth
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
     let growthTxt = '—', growthColor = null, growthSub = 'Dibanding periode sebelumnya';
@@ -371,19 +488,17 @@ const App = {
       const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - dayCount + 1);
       const prevFromStr = this._toDateInput(prevFrom);
       const prevToStr = this._toDateInput(prevTo);
-      const reg = this.dd.regional.getValue();
-      const area = this.dd.area.getValue();
       const branch = this.dd.branch.getValue();
       const channels = this.dd.channel.getValue();
+      const scopedSet = new Set(scopedBranches);
+      const useMapping = this.regional.length > 0;
+      const reg = this.dd.regional.getValue();
+      const area = this.dd.area.getValue();
+
       const prev = this.data.filter(r => {
         if (r.date < prevFromStr || r.date > prevToStr) return false;
         if (branch) return r.branch === branch;
-        if (this.regional.length > 0 && (reg || area)) {
-          const meta = this.branchMeta[r.branch];
-          if (!meta) return false;
-          if (reg && meta.regional !== reg) return false;
-          if (area && meta.area !== area) return false;
-        }
+        if (useMapping && (reg || area)) return scopedSet.has(r.branch);
         return true;
       });
       const prevTotal = prev.reduce((s, r) => {
@@ -409,30 +524,29 @@ const App = {
     document.getElementById('mGrowthSub').textContent = growthSub;
     document.getElementById('mAvg').textContent = this._fmtRp(avg);
     document.getElementById('mAvgSub').textContent = days + ' hari aktif';
-    document.getElementById('mBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + totalBranchAll + '</span>';
-    document.getElementById('mBranchSub').textContent = totalBranchAll > 0
-      ? (totalBranchAll - branchCount) + ' tanpa transaksi'
+    document.getElementById('mBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + totalBranchScoped + '</span>';
+    document.getElementById('mBranchSub').textContent = totalBranchScoped > 0
+      ? (totalBranchScoped - branchCount) + ' tanpa transaksi'
       : 'Total toko dalam filter';
   },
 
+  // ==========================================================================
+  // CHANNEL
+  // ==========================================================================
   _renderChannel() {
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
+    const branch = this.dd.branch.getValue();
     const reg = this.dd.regional.getValue();
     const area = this.dd.area.getValue();
-    const branch = this.dd.branch.getValue();
+    const scopedSet = new Set(this._getScopedBranches());
+    const useMapping = this.regional.length > 0;
 
-    // Base: apply semua filter kecuali channel
     const base = this.data.filter(r => {
       if (from && r.date < from) return false;
       if (to && r.date > to) return false;
       if (branch) return r.branch === branch;
-      if (this.regional.length > 0 && (reg || area)) {
-        const meta = this.branchMeta[r.branch];
-        if (!meta) return false;
-        if (reg && meta.regional !== reg) return false;
-        if (area && meta.area !== area) return false;
-      }
+      if (useMapping && (reg || area)) return scopedSet.has(r.branch);
       return true;
     });
 
@@ -466,9 +580,14 @@ const App = {
     }).join('');
   },
 
+  // ==========================================================================
+  // TOP & LOW
+  // ==========================================================================
   _renderRanks() {
+    const branch = this.dd.branch.getValue();
+    if (branch) return; // panel disembunyikan
+
     const buildRanks = (group, count, isLow) => {
-      // Aggregate berdasarkan group (branch/area/regional)
       const map = {};
       for (const r of this.filtered) {
         let key;
@@ -480,8 +599,7 @@ const App = {
       let arr = Object.entries(map).map(([k, v]) => ({ key: k, val: v }));
       arr = arr.filter(x => x.val > 0);
       arr.sort((a, b) => isLow ? a.val - b.val : b.val - a.val);
-      arr = arr.slice(0, count);
-      return arr;
+      return arr.slice(0, count);
     };
 
     const render = (rows, group) => rows.length === 0
@@ -498,6 +616,9 @@ const App = {
     document.getElementById('lowList').innerHTML = render(buildRanks(this.lowGroup, this.lowCount, true), this.lowGroup);
   },
 
+  // ==========================================================================
+  // TREND
+  // ==========================================================================
   _renderTrend() {
     const map = {};
     for (const r of this.filtered) {
@@ -570,13 +691,19 @@ const App = {
     document.querySelectorAll('#settingsModal [data-close]').forEach(el => {
       el.addEventListener('click', () => this._closeSettings());
     });
-    document.getElementById('btnSeedRegional').addEventListener('click', () => this._runSeedRegional());
+    // Sheet link
+    const link = document.getElementById('linkSheet');
+    if (CONFIG.SHEET_URL && !CONFIG.SHEET_URL.startsWith('PASTE')) {
+      link.href = CONFIG.SHEET_URL;
+    } else {
+      link.parentElement.style.display = 'none';
+    }
   },
 
   _openSettings() {
     document.getElementById('settingsModal').hidden = false;
-    document.getElementById('seedStatus').hidden = true;
     this._renderMoneyOptions();
+    this._updateInfoPanel(this.data.length > 0);
   },
   _closeSettings() {
     document.getElementById('settingsModal').hidden = true;
@@ -599,23 +726,33 @@ const App = {
     });
   },
 
-  async _runSeedRegional() {
-    const status = document.getElementById('seedStatus');
-    const btn = document.getElementById('btnSeedRegional');
-    btn.disabled = true;
-    status.hidden = false;
-    status.className = 'setting-status';
-    status.textContent = 'Memproses...';
-    try {
-      const result = await Sheets.seedRegional();
-      status.className = 'setting-status success';
-      status.textContent = result.message || 'Berhasil.';
-      await this.loadData();
-    } catch (e) {
-      status.className = 'setting-status error';
-      status.textContent = 'Gagal: ' + e.message;
+  _updateInfoPanel(ok, errorMsg) {
+    const status = document.getElementById('infoStatus');
+    const lastUp = document.getElementById('infoLastUpdate');
+    const rows = document.getElementById('infoRows');
+    const active = document.getElementById('infoActive');
+    const range = document.getElementById('infoRange');
+    if (!ok) {
+      status.textContent = 'Gagal · ' + (errorMsg || 'tidak diketahui');
+      status.style.color = 'var(--danger)';
+      return;
     }
-    btn.disabled = false;
+    status.textContent = 'Terhubung';
+    status.style.color = 'var(--sea)';
+    if (this.data.length === 0) {
+      lastUp.textContent = 'Belum ada data';
+      rows.textContent = '0';
+      active.textContent = '0';
+      range.textContent = '—';
+      return;
+    }
+    const latest = this._latestDate();
+    const earliest = this.data.reduce((min, r) => r.date < min ? r.date : min, latest);
+    const dateCount = new Set(this.data.map(r => r.date)).size;
+    lastUp.textContent = this._formatDateID(latest);
+    rows.textContent = this.data.length.toLocaleString('id-ID');
+    active.textContent = this.activeBranches.length + ' toko';
+    range.textContent = this._formatDateShort(earliest) + ' – ' + this._formatDateShort(latest) + ' (' + dateCount + ' hari)';
   },
 
   // ==========================================================================
@@ -623,15 +760,8 @@ const App = {
   // ==========================================================================
   _fmtRp(v) {
     if (v == null || isNaN(v)) return 'Rp 0';
-    const f = this.moneyFormat;
-    if (f === 'full') {
+    if (this.moneyFormat === 'full') {
       return 'Rp ' + Math.round(v).toLocaleString('id-ID');
-    }
-    if (f === 'million') {
-      return 'Rp ' + Math.round(v / 1e6).toLocaleString('id-ID') + ' JT';
-    }
-    if (f === 'thousand') {
-      return 'Rp ' + Math.round(v / 1e3).toLocaleString('id-ID') + ' Rb';
     }
     // auto
     if (v >= 1e9) return 'Rp ' + (v / 1e9).toFixed(2).replace('.', ',') + ' M';
@@ -640,7 +770,6 @@ const App = {
     return 'Rp ' + Math.round(v);
   },
   _fmtShort(v) {
-    // Untuk axis chart — selalu kompak
     if (v >= 1e9) return (v / 1e9).toFixed(1).replace('.', ',') + 'M';
     if (v >= 1e6) return Math.round(v / 1e6) + 'jt';
     if (v >= 1e3) return Math.round(v / 1e3) + 'rb';
@@ -653,9 +782,10 @@ const App = {
     return this._formatDateShort(from) + ' – ' + this._formatDateShort(to);
   },
   _formatDateShort(s) {
-    const [, m, d] = s.split('-');
+    if (!s) return '';
+    const [y, m, d] = s.split('-');
     const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-    return parseInt(d) + ' ' + months[parseInt(m) - 1];
+    return parseInt(d) + ' ' + months[parseInt(m) - 1] + ' ' + y.slice(2);
   },
   _formatDateID(s) {
     if (!s) return '';
@@ -682,8 +812,5 @@ const App = {
     this._toastTimer = setTimeout(() => t.hidden = true, 3500);
   }
 };
-
-// Alias untuk backward compat (dipakai di _renderChannel)
-const CHANNELS_ORDER = ['DINE IN','TAKE AWAY','GRABFOOD','GOFOOD','SHOPEE FOOD','BAZAR','CATERING','ESB Order Delivery','ESB Order Pickup','PAKAR'];
 
 document.addEventListener('DOMContentLoaded', () => App.init());
