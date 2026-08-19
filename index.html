@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F7F4EC" />
+  <title>Sales Dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div>
+        <div class="brand">Sales Dashboard</div>
+        <div class="brand-sub" id="lastUpdate">Memuat data...</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" id="btnRefresh" title="Muat ulang data">Refresh</button>
+        <button class="btn" id="btnExport">Export</button>
+        <button class="btn btn-primary" id="btnUpload">Upload Excel</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- FILTERS -->
+    <section class="filters">
+      <div class="filter-item">
+        <label>Periode</label>
+        <select id="fPeriode">
+          <option value="current">Bulan berjalan</option>
+          <option value="last">Bulan lalu</option>
+          <option value="last7">7 hari terakhir</option>
+          <option value="last30">30 hari terakhir</option>
+          <option value="custom">Rentang khusus</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label>Branch</label>
+        <select id="fBranch"><option value="all">Semua branch</option></select>
+      </div>
+      <div class="filter-item">
+        <label>Channel</label>
+        <select id="fChannel"><option value="all">Semua channel</option></select>
+      </div>
+      <div class="filter-item" id="dateFromWrap">
+        <label>Dari</label>
+        <input type="date" id="fFrom" />
+      </div>
+      <div class="filter-item" id="dateToWrap">
+        <label>Sampai</label>
+        <input type="date" id="fTo" />
+      </div>
+    </section>
+
+    <!-- METRICS -->
+    <section class="metrics">
+      <div class="metric-card">
+        <div class="metric-label">Sales periode</div>
+        <div class="metric-value" id="mSales">—</div>
+        <div class="metric-sub" id="mSalesSub">—</div>
+      </div>
+      <div class="metric-card metric-accent">
+        <div class="metric-label">Growth vs bulan lalu</div>
+        <div class="metric-value" id="mGrowth">—</div>
+        <div class="metric-sub" id="mGrowthSub">Dibanding periode sebelumnya</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Rata-rata harian</div>
+        <div class="metric-value" id="mAvg">—</div>
+        <div class="metric-sub" id="mAvgSub">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Branch aktif</div>
+        <div class="metric-value" id="mBranch">—</div>
+        <div class="metric-sub" id="mBranchSub">—</div>
+      </div>
+    </section>
+
+    <!-- TREND CHART -->
+    <section class="panel">
+      <div class="panel-label">Tren harian</div>
+      <div class="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </section>
+
+    <!-- SALES CHANNEL -->
+    <section class="panel">
+      <div class="panel-label">Sales channel</div>
+      <div id="channelList" class="channel-list"></div>
+    </section>
+
+    <!-- TOP & LOW -->
+    <div class="two-col">
+      <section class="panel">
+        <div class="panel-label">Top 5 branch</div>
+        <div id="topList" class="rank-list"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-label">Low 5 branch</div>
+        <div id="lowList" class="rank-list"></div>
+      </section>
+    </div>
+
+    <div class="footer-note">
+      Sumber data: Google Sheets · <a href="#" id="linkSheet" target="_blank" rel="noopener">Buka spreadsheet</a>
+    </div>
+  </main>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-nav="dashboard">Dashboard</button>
+    <button class="nav-btn" data-nav="upload">Upload</button>
+    <button class="nav-btn" data-nav="refresh">Refresh</button>
+  </nav>
+
+  <!-- UPLOAD MODAL -->
+  <div class="modal" id="uploadModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Upload Excel</div>
+        <button class="icon-btn" data-close aria-label="Tutup">×</button>
+      </div>
+      <div class="modal-sub">File akan diparsing dan otomatis masuk ke Google Sheets.</div>
+
+      <div class="dropzone" id="dropzone">
+        <div class="dz-title">Tarik file ke sini</div>
+        <div class="dz-or">atau</div>
+        <button class="btn" id="btnPickFile">Pilih file .xlsx</button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+        <div class="dz-hint">Format: Sales Summary By Branch Report</div>
+      </div>
+
+      <div class="file-preview" id="filePreview" hidden>
+        <div>
+          <div class="fp-name" id="fpName">—</div>
+          <div class="fp-meta" id="fpMeta">—</div>
+        </div>
+        <div class="fp-status" id="fpStatus">Siap</div>
+      </div>
+
+      <div class="options">
+        <label class="opt-row">
+          <input type="radio" name="uploadMode" value="append" checked />
+          <span>Tambahkan ke data yang ada</span>
+        </label>
+        <label class="opt-row">
+          <input type="radio" name="uploadMode" value="upsert" />
+          <span>Timpa data pada periode yang sama</span>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" data-close>Batal</button>
+        <button class="btn btn-primary" id="btnSendSheet" disabled>Kirim ke Sheets</button>
+      </div>
+
+      <div class="upload-status" id="uploadStatus" hidden></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- LIBRARIES -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- APP -->
+  <script src="js/config.js"></script>
+  <script src="js/sheets.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
