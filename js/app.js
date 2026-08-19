@@ -161,7 +161,7 @@ const App = {
         { value: 'last30', label: '30 hari terakhir' },
         { value: 'custom', label: 'Rentang khusus' }
       ],
-      value: 'current', allLabel: 'Bulan berjalan',
+      value: 'current', noAll: true, placeholder: 'Cari periode...',
       onChange: (v) => { this._setPeriode(v); this._applyFilters(); }
     });
 
