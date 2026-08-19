@@ -12,14 +12,13 @@
 </head>
 <body>
 
-  <!-- Pull to refresh indicator -->
   <div class="ptr-indicator" id="ptrIndicator"><span>Tarik untuk refresh</span></div>
 
   <header class="topbar">
     <div class="topbar-inner">
       <div class="topbar-left" id="topbarLeft" title="Klik untuk refresh">
         <div class="brand">Sales Dashboard</div>
-        <div class="brand-sub" id="lastUpdate">Memuat data...</div>
+        <div class="brand-sub" id="lastUpdate" hidden></div>
       </div>
       <button class="icon-btn-square" id="btnSettings" aria-label="Pengaturan">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -32,7 +31,6 @@
 
   <main class="container">
 
-    <!-- FILTERS -->
     <section class="filters">
       <div class="filter-item">
         <label>Regional</label>
@@ -64,7 +62,6 @@
       </div>
     </section>
 
-    <!-- METRICS -->
     <section class="metrics">
       <div class="metric-card">
         <div class="metric-label">Sales periode</div>
@@ -88,7 +85,6 @@
       </div>
     </section>
 
-    <!-- TREND CHART -->
     <section class="panel">
       <div class="panel-label">Tren harian</div>
       <div class="chart-wrap">
@@ -96,42 +92,39 @@
       </div>
     </section>
 
-    <!-- SALES CHANNEL -->
     <section class="panel">
       <div class="panel-label">Sales channel</div>
       <div id="channelList" class="channel-list"></div>
     </section>
 
-    <!-- TOP & LOW -->
-    <div class="two-col">
-      <section class="panel">
+    <div class="two-col" id="topLowWrap">
+      <section class="panel" id="topPanel">
         <div class="panel-head">
           <div class="panel-label">Top sales</div>
           <div class="panel-controls">
             <button class="dd-trigger dd-small" id="ddTopGroup"></button>
-            <button class="dd-trigger dd-small" id="ddTopCount"></button>
+            <input type="number" class="num-input" id="numTopCount" min="1" max="100" value="5" />
           </div>
         </div>
         <div id="topList" class="rank-list"></div>
       </section>
-      <section class="panel">
+      <section class="panel" id="lowPanel">
         <div class="panel-head">
           <div class="panel-label">Low sales</div>
           <div class="panel-controls">
             <button class="dd-trigger dd-small" id="ddLowGroup"></button>
-            <button class="dd-trigger dd-small" id="ddLowCount"></button>
+            <input type="number" class="num-input" id="numLowCount" min="1" max="100" value="5" />
           </div>
         </div>
         <div id="lowList" class="rank-list"></div>
       </section>
     </div>
 
-    <div class="footer-note">
-      Sumber data · <a href="#" id="linkSheet" target="_blank" rel="noopener">Buka spreadsheet</a>
+    <div class="single-branch-note" id="singleBranchNote" hidden>
+      Top & Low disembunyikan karena filter menampilkan satu toko.
     </div>
   </main>
 
-  <!-- SETTINGS MODAL -->
   <div class="modal" id="settingsModal" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
@@ -146,10 +139,20 @@
       </div>
 
       <div class="setting-group">
-        <div class="setting-label">Data regional</div>
-        <div class="setting-desc">Populate sheet Regional dengan data toko aktif (98 toko).</div>
-        <button class="btn" id="btnSeedRegional">Isi ulang sheet Regional</button>
-        <div class="setting-status" id="seedStatus" hidden></div>
+        <div class="setting-label">Info data</div>
+        <div class="info-list" id="infoList">
+          <div class="info-row"><span class="info-key">Status</span><span class="info-val" id="infoStatus">—</span></div>
+          <div class="info-row"><span class="info-key">Update terakhir</span><span class="info-val" id="infoLastUpdate">—</span></div>
+          <div class="info-row"><span class="info-key">Jumlah baris</span><span class="info-val" id="infoRows">—</span></div>
+          <div class="info-row"><span class="info-key">Toko aktif</span><span class="info-val" id="infoActive">—</span></div>
+          <div class="info-row"><span class="info-key">Rentang tanggal</span><span class="info-val" id="infoRange">—</span></div>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <div class="setting-label">Sumber data</div>
+        <div class="setting-desc">Data disimpan di Google Sheets. Untuk menambah atau mengedit data, buka spreadsheet berikut.</div>
+        <a class="btn" id="linkSheet" target="_blank" rel="noopener">Buka Spreadsheet</a>
       </div>
 
       <div class="modal-actions">
@@ -158,13 +161,10 @@
     </div>
   </div>
 
-  <!-- TOAST -->
   <div class="toast" id="toast" hidden></div>
 
-  <!-- LIBRARIES -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <!-- APP -->
   <script src="js/config.js"></script>
   <script src="js/sheets.js"></script>
   <script src="js/dropdown.js"></script>
