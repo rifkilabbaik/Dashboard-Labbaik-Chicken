@@ -1,68 +1,51 @@
 // ============================================================================
-// APLIKASI UTAMA
+// APLIKASI UTAMA — v2
 // ============================================================================
 
 const App = {
-  data: [],        // Semua data dari Google Sheets
-  filtered: [],    // Data setelah filter
-  branches: [],    // List branch unik
+  data: [],           // Data sales
+  regional: [],       // Data regional/area/branch mapping
+  filtered: [],       // Data setelah filter
+  branchMeta: {},     // branch -> {regional, area}
+  activeBranches: [], // Branches yang ada di sheet Regional (aktif)
   trendChart: null,
+  trendDates: [],     // ISO date strings untuk tooltip chart
+  moneyFormat: 'auto',
+  topGroup: 'branch', topCount: 5,
+  lowGroup: 'branch', lowCount: 5,
+  dd: {}, // dropdown instances
 
   async init() {
-    this._bindUI();
-    this._setDefaultDates();
+    this._loadSettings();
+    this._bindTopbar();
+    this._bindDateInputs();
+    this._bindSettingsModal();
+    this._bindPullToRefresh();
+    this._bindWindowFocus();
+    this._initDropdowns();
+    this._setPeriode('current', /*silent*/ true);
     await this.loadData();
   },
 
-  _bindUI() {
-    document.getElementById('btnUpload').addEventListener('click', () => this._openModal());
-    document.getElementById('btnRefresh').addEventListener('click', () => this.loadData());
-    document.getElementById('btnExport').addEventListener('click', () => this.exportCSV());
+  // ==========================================================================
+  // SETTINGS PERSISTENCE
+  // ==========================================================================
+  _loadSettings() {
+    this.moneyFormat = localStorage.getItem('moneyFormat') || 'auto';
+    this.topCount = parseInt(localStorage.getItem('topCount')) || 5;
+    this.lowCount = parseInt(localStorage.getItem('lowCount')) || 5;
+    this.topGroup = localStorage.getItem('topGroup') || 'branch';
+    this.lowGroup = localStorage.getItem('lowGroup') || 'branch';
+  },
+  _saveSetting(k, v) { localStorage.setItem(k, v); },
 
-    // Modal close
-    document.querySelectorAll('#uploadModal [data-close]').forEach(el => {
-      el.addEventListener('click', () => this._closeModal());
-    });
+  // ==========================================================================
+  // TOPBAR & INTERACTIONS
+  // ==========================================================================
+  _bindTopbar() {
+    document.getElementById('topbarLeft').addEventListener('click', () => this.loadData());
+    document.getElementById('btnSettings').addEventListener('click', () => this._openSettings());
 
-    // Upload UI
-    document.getElementById('btnPickFile').addEventListener('click', () => {
-      document.getElementById('fileInput').click();
-    });
-    document.getElementById('fileInput').addEventListener('change', (e) => {
-      if (e.target.files[0]) this._handleFile(e.target.files[0]);
-    });
-    document.getElementById('btnSendSheet').addEventListener('click', () => this._sendToSheet());
-
-    // Drag & drop
-    const dz = document.getElementById('dropzone');
-    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dz.classList.remove('dragover');
-      if (e.dataTransfer.files[0]) this._handleFile(e.dataTransfer.files[0]);
-    });
-
-    // Filters
-    ['fPeriode', 'fBranch', 'fChannel', 'fFrom', 'fTo'].forEach(id => {
-      document.getElementById(id).addEventListener('change', () => this._applyFilters());
-    });
-    document.getElementById('fPeriode').addEventListener('change', (e) => {
-      this._setPeriode(e.target.value);
-      this._applyFilters();
-    });
-
-    // Bottom nav
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const nav = btn.dataset.nav;
-        if (nav === 'upload') this._openModal();
-        else if (nav === 'refresh') this.loadData();
-        else window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-    });
-
-    // Footer sheet link
     const link = document.getElementById('linkSheet');
     if (CONFIG.SHEET_URL && !CONFIG.SHEET_URL.startsWith('PASTE')) {
       link.href = CONFIG.SHEET_URL;
@@ -71,14 +54,139 @@ const App = {
     }
   },
 
-  _setDefaultDates() {
-    const now = new Date();
-    const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    document.getElementById('fFrom').value = this._toDateInput(first);
-    document.getElementById('fTo').value = this._toDateInput(now);
+  _bindDateInputs() {
+    const from = document.getElementById('fFrom');
+    const to = document.getElementById('fTo');
+    from.addEventListener('change', () => {
+      this.dd.periode.setValue('custom');
+      this._applyFilters();
+    });
+    to.addEventListener('change', () => {
+      this.dd.periode.setValue('custom');
+      this._applyFilters();
+    });
   },
 
-  _setPeriode(mode) {
+  _bindPullToRefresh() {
+    const indicator = document.getElementById('ptrIndicator');
+    let startY = 0, pulling = false;
+    const threshold = 70;
+
+    document.addEventListener('touchstart', (e) => {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].pageY;
+        pulling = true;
+      } else {
+        pulling = false;
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      const delta = e.touches[0].pageY - startY;
+      if (delta > 0 && window.scrollY === 0) {
+        const h = Math.min(delta * 0.5, 60);
+        indicator.style.height = h + 'px';
+        indicator.querySelector('span').textContent = delta > threshold
+          ? 'Lepas untuk refresh' : 'Tarik untuk refresh';
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+      if (!pulling) return;
+      const delta = (e.changedTouches[0].pageY - startY);
+      if (delta > threshold && window.scrollY === 0) {
+        indicator.style.height = '40px';
+        indicator.querySelector('span').textContent = 'Memuat...';
+        this.loadData().finally(() => {
+          setTimeout(() => { indicator.style.height = '0'; }, 400);
+        });
+      } else {
+        indicator.style.height = '0';
+      }
+      pulling = false;
+      startY = 0;
+    });
+  },
+
+  _bindWindowFocus() {
+    let lastLoad = Date.now();
+    window.addEventListener('focus', () => {
+      // Auto-refresh kalau tab tidak aktif > 30 detik
+      if (Date.now() - lastLoad > 30000) {
+        this.loadData();
+        lastLoad = Date.now();
+      }
+    });
+  },
+
+  // ==========================================================================
+  // DROPDOWNS
+  // ==========================================================================
+  _initDropdowns() {
+    this.dd.regional = new Dropdown(document.getElementById('ddRegional'), {
+      items: [], value: '', allLabel: 'Semua Regional', placeholder: 'Cari regional...',
+      onChange: (v) => { this._updateAreaOptions(); this._updateBranchOptions(); this._applyFilters(); }
+    });
+    this.dd.area = new Dropdown(document.getElementById('ddArea'), {
+      items: [], value: '', allLabel: 'Semua Area', placeholder: 'Cari area...',
+      onChange: (v) => { this._updateBranchOptions(); this._applyFilters(); }
+    });
+    this.dd.branch = new Dropdown(document.getElementById('ddBranch'), {
+      items: [], value: '', allLabel: 'Semua Toko', placeholder: 'Cari nama toko...',
+      onChange: () => this._applyFilters()
+    });
+    this.dd.channel = new Dropdown(document.getElementById('ddChannel'), {
+      items: CONFIG.CHANNELS.map(c => ({ value: c, label: CONFIG.CHANNEL_DISPLAY[c] || c })),
+      value: [], multi: true, allLabel: 'Semua channel', placeholder: 'Cari channel...',
+      onChange: () => this._applyFilters()
+    });
+    this.dd.periode = new Dropdown(document.getElementById('ddPeriode'), {
+      items: [
+        { value: 'current', label: 'Bulan berjalan' },
+        { value: 'last', label: 'Bulan lalu' },
+        { value: 'last7', label: '7 hari terakhir' },
+        { value: 'last30', label: '30 hari terakhir' },
+        { value: 'custom', label: 'Rentang khusus' }
+      ],
+      value: 'current', allLabel: 'Bulan berjalan',
+      onChange: (v) => {
+        this._setPeriode(v, /*silent*/ false);
+        this._applyFilters();
+      }
+    });
+
+    // Top/Low controls
+    const countItems = [3, 5, 10, 20].map(n => ({ value: String(n), label: 'Top ' + n }));
+    const countItemsLow = [3, 5, 10, 20].map(n => ({ value: String(n), label: 'Low ' + n }));
+    const groupItems = [
+      { value: 'branch', label: 'Per toko' },
+      { value: 'area', label: 'Per area' },
+      { value: 'regional', label: 'Per regional' }
+    ];
+
+    this.dd.topGroup = new Dropdown(document.getElementById('ddTopGroup'), {
+      items: groupItems, value: this.topGroup, allLabel: 'Per toko',
+      onChange: (v) => { this.topGroup = v; this._saveSetting('topGroup', v); this._renderRanks(); }
+    });
+    this.dd.topCount = new Dropdown(document.getElementById('ddTopCount'), {
+      items: countItems, value: String(this.topCount), allLabel: 'Top 5',
+      onChange: (v) => { this.topCount = parseInt(v); this._saveSetting('topCount', v); this._renderRanks(); }
+    });
+    this.dd.lowGroup = new Dropdown(document.getElementById('ddLowGroup'), {
+      items: groupItems, value: this.lowGroup, allLabel: 'Per toko',
+      onChange: (v) => { this.lowGroup = v; this._saveSetting('lowGroup', v); this._renderRanks(); }
+    });
+    this.dd.lowCount = new Dropdown(document.getElementById('ddLowCount'), {
+      items: countItemsLow, value: String(this.lowCount), allLabel: 'Low 5',
+      onChange: (v) => { this.lowCount = parseInt(v); this._saveSetting('lowCount', v); this._renderRanks(); }
+    });
+  },
+
+  // ==========================================================================
+  // PERIODE ↔ DATES
+  // ==========================================================================
+  _setPeriode(mode, silent) {
     const now = new Date();
     let from, to = now;
     if (mode === 'current') {
@@ -101,120 +209,133 @@ const App = {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   },
 
+  // ==========================================================================
+  // LOAD DATA
+  // ==========================================================================
   async loadData() {
     document.getElementById('lastUpdate').textContent = 'Memuat data...';
-    this._hideDiagnostic();
     try {
-      this.data = await Sheets.fetchAll();
-      this._populateBranches();
-      this._populateChannels();
+      const [sales, regional] = await Promise.all([
+        Sheets.fetchAll(),
+        Sheets.fetchRegional().catch(() => [])
+      ]);
+      this.data = sales;
+      this.regional = regional;
+      this._buildBranchMeta();
+      this._populateFilters();
       this._autoAdjustFilter();
       this._applyFilters();
 
       if (this.data.length === 0) {
-        document.getElementById('lastUpdate').textContent = 'Fetch berhasil tapi data kosong';
-        this._showDiagnostic('empty');
+        document.getElementById('lastUpdate').textContent = 'Sheet Sales kosong · isi data di spreadsheet';
       } else {
         const latest = this._latestDate();
         const dateCount = new Set(this.data.map(r => r.date)).size;
+        const regionalNote = regional.length > 0
+          ? ' · ' + regional.length + ' toko aktif'
+          : ' · Regional belum diisi (buka Pengaturan)';
         document.getElementById('lastUpdate').textContent =
-          'Data terakhir · ' + this._formatDateID(latest) +
-          ' · ' + this.data.length.toLocaleString('id-ID') + ' baris · ' +
-          this.branches.length + ' branch · ' + dateCount + ' tanggal';
+          this._formatDateID(latest) + ' · ' + this.data.length.toLocaleString('id-ID') + ' baris' + regionalNote;
       }
     } catch (e) {
-      document.getElementById('lastUpdate').textContent = 'Gagal memuat: ' + e.message;
-      this._showDiagnostic('error', e.message);
+      document.getElementById('lastUpdate').textContent = 'Gagal: ' + e.message;
+      this._toast(e.message);
     }
   },
 
-  _showDiagnostic(type, msg) {
-    let banner = document.getElementById('diagBanner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'diagBanner';
-      banner.style.cssText = 'background:#FFF4E6;border:0.5px solid #E8C88C;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#5B4A20;';
-      const container = document.querySelector('.container');
-      container.insertBefore(banner, container.firstChild);
-    }
-    const testUrl = CONFIG.APPS_SCRIPT_URL + '?action=fetch&_t=' + Date.now();
-    if (type === 'empty') {
-      banner.innerHTML =
-        '<div style="font-weight:500;margin-bottom:6px;">Data tidak muncul?</div>' +
-        '<div style="margin-bottom:8px;">Fetch ke Apps Script berhasil tapi return 0 baris. Kemungkinan:</div>' +
-        '<ul style="margin:0 0 10px 20px;padding:0;">' +
-        '<li>Sheet tab-nya bukan bernama <code>Sales</code> (harus huruf besar-kecil persis)</li>' +
-        '<li>Apps Script belum di-<b>redeploy versi baru</b> setelah update Code.gs</li>' +
-        '<li>Data ditulis ke sheet lain (bukan "Sales")</li>' +
-        '</ul>' +
-        '<a href="' + testUrl + '" target="_blank" rel="noopener" style="color:#4A90B8;">Buka Apps Script URL untuk lihat raw response &rarr;</a>';
+  _buildBranchMeta() {
+    this.branchMeta = {};
+    this.activeBranches = [];
+    this.regional.forEach(r => {
+      this.branchMeta[r.branch] = { regional: r.regional, area: r.area };
+      this.activeBranches.push(r.branch);
+    });
+  },
+
+  // ==========================================================================
+  // POPULATE FILTERS
+  // ==========================================================================
+  _populateFilters() {
+    // Regional
+    const regionals = Array.from(new Set(this.regional.map(r => r.regional))).sort();
+    this.dd.regional.setItems(regionals.map(r => ({ value: r, label: r })));
+    this._updateAreaOptions();
+    this._updateBranchOptions();
+  },
+
+  _updateAreaOptions() {
+    const selectedReg = this.dd.regional.getValue();
+    let areas = this.regional;
+    if (selectedReg) areas = areas.filter(r => r.regional === selectedReg);
+    const uniq = Array.from(new Set(areas.map(r => r.area))).sort();
+    this.dd.area.setItems(uniq.map(a => ({ value: a, label: a })));
+  },
+
+  _updateBranchOptions() {
+    const selectedReg = this.dd.regional.getValue();
+    const selectedArea = this.dd.area.getValue();
+    let branches;
+    if (this.regional.length > 0) {
+      branches = this.regional
+        .filter(r => !selectedReg || r.regional === selectedReg)
+        .filter(r => !selectedArea || r.area === selectedArea)
+        .map(r => r.branch);
     } else {
-      banner.innerHTML =
-        '<div style="font-weight:500;margin-bottom:6px;">Error: ' + this._escape(msg) + '</div>' +
-        '<a href="' + testUrl + '" target="_blank" rel="noopener" style="color:#4A90B8;">Test Apps Script URL langsung &rarr;</a>';
+      // Fallback: dari data sales kalau Regional belum diisi
+      branches = Array.from(new Set(this.data.map(r => r.branch)));
     }
+    const uniq = Array.from(new Set(branches)).sort();
+    this.dd.branch.setItems(uniq.map(b => ({ value: b, label: this._shortBranch(b) })));
   },
 
-  _hideDiagnostic() {
-    const b = document.getElementById('diagBanner');
-    if (b) b.remove();
-  },
-
-  /**
-   * Jika filter default (bulan berjalan) tidak punya data,
-   * otomatis geser ke bulan terbaru yang punya data.
-   */
   _autoAdjustFilter() {
     if (this.data.length === 0) return;
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
     const inRange = this.data.some(r => r.date >= from && r.date <= to);
     if (inRange) return;
-
-    // Fallback: gunakan bulan dari tanggal terbaru di data
     const latest = this._latestDate();
     const [y, m] = latest.split('-');
-    const firstOfMonth = y + '-' + m + '-01';
-    document.getElementById('fFrom').value = firstOfMonth;
+    document.getElementById('fFrom').value = y + '-' + m + '-01';
     document.getElementById('fTo').value = latest;
-    document.getElementById('fPeriode').value = 'custom';
+    this.dd.periode.setValue('custom');
   },
 
-  _populateBranches() {
-    const set = new Set(this.data.map(r => r.branch));
-    this.branches = Array.from(set).sort();
-    const sel = document.getElementById('fBranch');
-    sel.innerHTML = '<option value="all">Semua branch (' + this.branches.length + ')</option>' +
-      this.branches.map(b => '<option value="' + this._escape(b) + '">' + this._escape(b) + '</option>').join('');
-  },
-
-  _populateChannels() {
-    const sel = document.getElementById('fChannel');
-    sel.innerHTML = '<option value="all">Semua channel</option>' +
-      CONFIG.CHANNELS.map(c => {
-        const label = CONFIG.CHANNEL_DISPLAY[c] || c;
-        return '<option value="' + this._escape(c) + '">' + this._escape(label) + '</option>';
-      }).join('');
-  },
-
+  // ==========================================================================
+  // APPLY FILTERS
+  // ==========================================================================
   _applyFilters() {
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
-    const branch = document.getElementById('fBranch').value;
-    const channel = document.getElementById('fChannel').value;
+    const reg = this.dd.regional.getValue();
+    const area = this.dd.area.getValue();
+    const branch = this.dd.branch.getValue();
+    const channels = this.dd.channel.getValue(); // array
 
     this.filtered = this.data.filter(r => {
       if (from && r.date < from) return false;
       if (to && r.date > to) return false;
-      if (branch !== 'all' && r.branch !== branch) return false;
+
+      // Filter regional/area/branch (jika ada mapping)
+      if (branch) {
+        if (r.branch !== branch) return false;
+      } else if (this.regional.length > 0) {
+        // Kalau ada mapping, filter berdasarkan branch yang ada di Regional
+        const meta = this.branchMeta[r.branch];
+        if (reg || area) {
+          if (!meta) return false;
+          if (reg && meta.regional !== reg) return false;
+          if (area && meta.area !== area) return false;
+        }
+      }
       return true;
     });
 
-    // Jika channel dipilih, override total per baris jadi hanya channel itu
-    if (channel !== 'all') {
+    // Hitung total sesuai channel yang dipilih
+    if (channels && channels.length > 0 && channels.length < CONFIG.CHANNELS.length) {
       this.filtered = this.filtered.map(r => ({
         ...r,
-        total: r.channels[channel] || 0
+        total: channels.reduce((s, ch) => s + (r.channels[ch] || 0), 0)
       })).filter(r => r.total > 0);
     }
 
@@ -228,17 +349,20 @@ const App = {
     this._renderTrend();
   },
 
+  // ==========================================================================
+  // RENDER
+  // ==========================================================================
   _renderMetrics() {
     const total = this.filtered.reduce((s, r) => s + r.total, 0);
     const days = new Set(this.filtered.map(r => r.date)).size;
     const branchCount = new Set(this.filtered.map(r => r.branch)).size;
-    const totalBranchAll = this.branches.length;
+    const totalBranchAll = this.activeBranches.length || new Set(this.data.map(r => r.branch)).size;
     const avg = days > 0 ? total / days : 0;
 
-    // Growth vs bulan lalu (perbandingan rata-rata per hari)
+    // Growth vs periode sebelumnya
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
-    let growthTxt = '—', growthColor = null;
+    let growthTxt = '—', growthColor = null, growthSub = 'Dibanding periode sebelumnya';
     if (from && to) {
       const fromD = new Date(from);
       const toD = new Date(to);
@@ -247,61 +371,84 @@ const App = {
       const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - dayCount + 1);
       const prevFromStr = this._toDateInput(prevFrom);
       const prevToStr = this._toDateInput(prevTo);
-      const branch = document.getElementById('fBranch').value;
-      const channel = document.getElementById('fChannel').value;
-      const prev = this.data.filter(r =>
-        r.date >= prevFromStr && r.date <= prevToStr &&
-        (branch === 'all' || r.branch === branch)
-      );
-      const prevTotal = prev.reduce((s, r) => s + (channel === 'all' ? r.total : (r.channels[channel] || 0)), 0);
+      const reg = this.dd.regional.getValue();
+      const area = this.dd.area.getValue();
+      const branch = this.dd.branch.getValue();
+      const channels = this.dd.channel.getValue();
+      const prev = this.data.filter(r => {
+        if (r.date < prevFromStr || r.date > prevToStr) return false;
+        if (branch) return r.branch === branch;
+        if (this.regional.length > 0 && (reg || area)) {
+          const meta = this.branchMeta[r.branch];
+          if (!meta) return false;
+          if (reg && meta.regional !== reg) return false;
+          if (area && meta.area !== area) return false;
+        }
+        return true;
+      });
+      const prevTotal = prev.reduce((s, r) => {
+        if (channels && channels.length > 0 && channels.length < CONFIG.CHANNELS.length) {
+          return s + channels.reduce((c, ch) => c + (r.channels[ch] || 0), 0);
+        }
+        return s + r.total;
+      }, 0);
       const prevDays = new Set(prev.map(r => r.date)).size;
       const prevAvg = prevDays > 0 ? prevTotal / prevDays : 0;
       if (prevAvg > 0) {
         const g = ((avg - prevAvg) / prevAvg) * 100;
         growthTxt = (g >= 0 ? '+' : '') + g.toFixed(1) + '%';
         growthColor = g >= 0 ? 'var(--sea)' : 'var(--danger)';
+        growthSub = 'vs ' + this._formatDateShort(prevFromStr) + ' – ' + this._formatDateShort(prevToStr);
       }
     }
 
     document.getElementById('mSales').textContent = this._fmtRp(total);
     document.getElementById('mSalesSub').textContent = days + ' hari · ' + this._formatRange();
     document.getElementById('mGrowth').textContent = growthTxt;
-    if (growthColor) document.getElementById('mGrowth').style.color = growthColor;
+    document.getElementById('mGrowth').style.color = growthColor || 'var(--sea)';
+    document.getElementById('mGrowthSub').textContent = growthSub;
     document.getElementById('mAvg').textContent = this._fmtRp(avg);
     document.getElementById('mAvgSub').textContent = days + ' hari aktif';
     document.getElementById('mBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + totalBranchAll + '</span>';
-    document.getElementById('mBranchSub').textContent = (totalBranchAll - branchCount) + ' tanpa transaksi';
+    document.getElementById('mBranchSub').textContent = totalBranchAll > 0
+      ? (totalBranchAll - branchCount) + ' tanpa transaksi'
+      : 'Total toko dalam filter';
   },
 
   _renderChannel() {
-    // Total per channel (dari filtered data — tapi sebelum override channel)
-    // Kita hitung ulang dari data asli dengan filter periode + branch (bukan channel)
     const from = document.getElementById('fFrom').value;
     const to = document.getElementById('fTo').value;
-    const branch = document.getElementById('fBranch').value;
+    const reg = this.dd.regional.getValue();
+    const area = this.dd.area.getValue();
+    const branch = this.dd.branch.getValue();
 
+    // Base: apply semua filter kecuali channel
     const base = this.data.filter(r => {
       if (from && r.date < from) return false;
       if (to && r.date > to) return false;
-      if (branch !== 'all' && r.branch !== branch) return false;
+      if (branch) return r.branch === branch;
+      if (this.regional.length > 0 && (reg || area)) {
+        const meta = this.branchMeta[r.branch];
+        if (!meta) return false;
+        if (reg && meta.regional !== reg) return false;
+        if (area && meta.area !== area) return false;
+      }
       return true;
     });
 
     const totals = {};
     let grand = 0;
-    for (const ch of CONFIG.CHANNELS) {
+    CHANNELS_ORDER.forEach(ch => {
       totals[ch] = base.reduce((s, r) => s + (r.channels[ch] || 0), 0);
       grand += totals[ch];
-    }
+    });
 
     const list = document.getElementById('channelList');
     if (grand === 0) {
       list.innerHTML = '<div style="color:var(--ink-3);font-size:13px;">Tidak ada data pada periode ini.</div>';
       return;
     }
-
-    // Sort desc
-    const sorted = CONFIG.CHANNELS.map(ch => ({ ch, val: totals[ch] })).sort((a, b) => b.val - a.val);
+    const sorted = CHANNELS_ORDER.map(ch => ({ ch, val: totals[ch] })).sort((a, b) => b.val - a.val);
     const max = sorted[0].val;
 
     list.innerHTML = sorted.map(({ ch, val }) => {
@@ -310,61 +457,64 @@ const App = {
       const barW = max > 0 ? (val / max * 100) : 0;
       const label = CONFIG.CHANNEL_DISPLAY[ch] || ch;
       const lightClass = pct < 10 ? 'light' : '';
-      return `
-        <div class="channel-row">
-          <div class="channel-name">${this._escape(label)}</div>
-          <div class="channel-bar"><div class="channel-bar-fill ${lightClass}" style="width:${barW.toFixed(1)}%"></div></div>
-          <div class="channel-amount">${this._fmtRp(val)}</div>
-          <div class="channel-pct">${pct.toFixed(1)}%</div>
-        </div>
-      `;
+      return `<div class="channel-row">
+        <div class="channel-name">${this._escape(label)}</div>
+        <div class="channel-bar"><div class="channel-bar-fill ${lightClass}" style="width:${barW.toFixed(1)}%"></div></div>
+        <div class="channel-amount">${this._fmtRp(val)}</div>
+        <div class="channel-pct">${pct.toFixed(1)}%</div>
+      </div>`;
     }).join('');
   },
 
   _renderRanks() {
-    // Agregat per branch dari filtered
-    const map = {};
-    for (const r of this.filtered) {
-      map[r.branch] = (map[r.branch] || 0) + r.total;
-    }
-    const arr = Object.entries(map).map(([branch, val]) => ({ branch, val }));
-    arr.sort((a, b) => b.val - a.val);
+    const buildRanks = (group, count, isLow) => {
+      // Aggregate berdasarkan group (branch/area/regional)
+      const map = {};
+      for (const r of this.filtered) {
+        let key;
+        if (group === 'branch') key = r.branch;
+        else if (group === 'area') key = (this.branchMeta[r.branch] || {}).area || 'Tanpa area';
+        else key = (this.branchMeta[r.branch] || {}).regional || 'Tanpa regional';
+        map[key] = (map[key] || 0) + r.total;
+      }
+      let arr = Object.entries(map).map(([k, v]) => ({ key: k, val: v }));
+      arr = arr.filter(x => x.val > 0);
+      arr.sort((a, b) => isLow ? a.val - b.val : b.val - a.val);
+      arr = arr.slice(0, count);
+      return arr;
+    };
 
-    const top = arr.slice(0, 5);
-    const low = arr.filter(x => x.val > 0).slice(-5).reverse();
-
-    const render = (rows) => rows.length === 0
-      ? '<div style="color:var(--ink-3);font-size:13px;">—</div>'
-      : rows.map((r, i) => `
-        <div class="rank-row">
+    const render = (rows, group) => rows.length === 0
+      ? '<div style="color:var(--ink-3);font-size:13px;padding:8px 0;">—</div>'
+      : rows.map((r, i) => `<div class="rank-row">
           <div class="rank-left">
             <span class="rank-num">${i + 1}</span>
-            <span class="rank-name">${this._escape(this._shortBranch(r.branch))}</span>
+            <span class="rank-name">${this._escape(group === 'branch' ? this._shortBranch(r.key) : r.key)}</span>
           </div>
           <div class="rank-amount">${this._fmtRp(r.val)}</div>
-        </div>
-      `).join('');
+        </div>`).join('');
 
-    document.getElementById('topList').innerHTML = render(top);
-    document.getElementById('lowList').innerHTML = render(low);
+    document.getElementById('topList').innerHTML = render(buildRanks(this.topGroup, this.topCount, false), this.topGroup);
+    document.getElementById('lowList').innerHTML = render(buildRanks(this.lowGroup, this.lowCount, true), this.lowGroup);
   },
 
   _renderTrend() {
-    // Agregat per tanggal
     const map = {};
     for (const r of this.filtered) {
       map[r.date] = (map[r.date] || 0) + r.total;
     }
     const dates = Object.keys(map).sort();
     const values = dates.map(d => map[d]);
+    this.trendDates = dates;
     const labels = dates.map(d => {
-      const [y, m, day] = d.split('-');
+      const [, m, day] = d.split('-');
       return parseInt(day) + '/' + parseInt(m);
     });
 
     const ctx = document.getElementById('trendChart').getContext('2d');
     if (this.trendChart) this.trendChart.destroy();
 
+    const self = this;
     this.trendChart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -388,30 +538,24 @@ const App = {
           legend: { display: false },
           tooltip: {
             backgroundColor: '#1F2937',
-            padding: 10,
-            titleFont: { size: 12 },
+            padding: 12,
+            titleFont: { size: 13, weight: '500' },
             bodyFont: { size: 13 },
+            displayColors: false,
             callbacks: {
-              label: (ctx) => 'Rp ' + ctx.parsed.y.toLocaleString('id-ID')
+              title: (items) => self._formatDateID(self.trendDates[items[0].dataIndex]),
+              label: (ctx) => self._fmtRp(ctx.parsed.y)
             }
           }
         },
         scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: '#8A93A0', font: { size: 11 } }
-          },
+          x: { grid: { display: false }, ticks: { color: '#8A93A0', font: { size: 11 } } },
           y: {
-            grid: { color: '#E8E2D3', drawBorder: false },
+            grid: { color: '#E8E2D3' },
             ticks: {
               color: '#8A93A0',
               font: { size: 11 },
-              callback: (v) => {
-                if (v >= 1e9) return (v / 1e9).toFixed(1) + ' M';
-                if (v >= 1e6) return (v / 1e6).toFixed(0) + ' jt';
-                if (v >= 1e3) return (v / 1e3).toFixed(0) + ' rb';
-                return v;
-              }
+              callback: (v) => self._fmtShort(v)
             }
           }
         }
@@ -419,103 +563,88 @@ const App = {
     });
   },
 
-  // === UPLOAD FLOW ===
-  _openModal() {
-    document.getElementById('uploadModal').hidden = false;
-    document.getElementById('filePreview').hidden = true;
-    document.getElementById('uploadStatus').hidden = true;
-    document.getElementById('btnSendSheet').disabled = true;
-    document.getElementById('fileInput').value = '';
-    this._pendingUpload = null;
-  },
-  _closeModal() {
-    document.getElementById('uploadModal').hidden = true;
+  // ==========================================================================
+  // SETTINGS MODAL
+  // ==========================================================================
+  _bindSettingsModal() {
+    document.querySelectorAll('#settingsModal [data-close]').forEach(el => {
+      el.addEventListener('click', () => this._closeSettings());
+    });
+    document.getElementById('btnSeedRegional').addEventListener('click', () => this._runSeedRegional());
   },
 
-  async _handleFile(file) {
-    const status = document.getElementById('uploadStatus');
-    status.hidden = false;
-    status.className = 'upload-status info';
-    status.textContent = 'Memproses file...';
-    try {
-      const parsed = await ExcelParser.parse(file);
-      this._pendingUpload = parsed;
-      document.getElementById('filePreview').hidden = false;
-      document.getElementById('fpName').textContent = file.name;
-      document.getElementById('fpMeta').textContent =
-        parsed.meta.branches + ' branch · ' +
-        parsed.meta.dates + ' tanggal · ' +
-        parsed.meta.rowCount + ' baris · ' +
-        this._fmtRp(parsed.meta.total);
-      document.getElementById('fpStatus').textContent = 'Siap';
-      document.getElementById('fpStatus').className = 'fp-status';
-      document.getElementById('btnSendSheet').disabled = false;
-      status.hidden = true;
-    } catch (e) {
-      status.className = 'upload-status error';
-      status.textContent = e.message;
-      document.getElementById('btnSendSheet').disabled = true;
-    }
+  _openSettings() {
+    document.getElementById('settingsModal').hidden = false;
+    document.getElementById('seedStatus').hidden = true;
+    this._renderMoneyOptions();
+  },
+  _closeSettings() {
+    document.getElementById('settingsModal').hidden = true;
   },
 
-  async _sendToSheet() {
-    if (!this._pendingUpload) return;
-    const mode = document.querySelector('input[name="uploadMode"]:checked').value;
-    const btn = document.getElementById('btnSendSheet');
-    const status = document.getElementById('uploadStatus');
+  _renderMoneyOptions() {
+    const box = document.getElementById('moneyFormatOptions');
+    box.innerHTML = Object.entries(CONFIG.MONEY_FORMATS).map(([k, v]) =>
+      `<label>
+        <input type="radio" name="moneyFormat" value="${k}" ${this.moneyFormat === k ? 'checked' : ''}/>
+        <span>${this._escape(v.label)}</span>
+      </label>`
+    ).join('');
+    box.querySelectorAll('input[name="moneyFormat"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        this.moneyFormat = inp.value;
+        this._saveSetting('moneyFormat', inp.value);
+        this._render();
+      });
+    });
+  },
+
+  async _runSeedRegional() {
+    const status = document.getElementById('seedStatus');
+    const btn = document.getElementById('btnSeedRegional');
     btn.disabled = true;
     status.hidden = false;
-    status.className = 'upload-status info';
-    status.textContent = 'Mengirim ke Google Sheets...';
+    status.className = 'setting-status';
+    status.textContent = 'Memproses...';
     try {
-      const result = await Sheets.pushRows(this._pendingUpload.rows, mode);
-      status.className = 'upload-status success';
-      status.textContent = 'Berhasil. ' + (result.added || 0) + ' baris ditambahkan' +
-        (result.updated ? ', ' + result.updated + ' diperbarui' : '') + '.';
-      setTimeout(() => {
-        this._closeModal();
-        this.loadData();
-      }, 1200);
+      const result = await Sheets.seedRegional();
+      status.className = 'setting-status success';
+      status.textContent = result.message || 'Berhasil.';
+      await this.loadData();
     } catch (e) {
-      status.className = 'upload-status error';
+      status.className = 'setting-status error';
       status.textContent = 'Gagal: ' + e.message;
-      btn.disabled = false;
     }
+    btn.disabled = false;
   },
 
-  // === EXPORT ===
-  exportCSV() {
-    if (this.filtered.length === 0) {
-      this._toast('Tidak ada data untuk diexport');
-      return;
-    }
-    const header = ['Sales Date', 'Branch Name', ...CONFIG.CHANNELS, 'Total'];
-    const lines = [header.join(',')];
-    for (const r of this.filtered) {
-      const cells = [
-        r.date,
-        '"' + r.branch.replace(/"/g, '""') + '"',
-        ...CONFIG.CHANNELS.map(ch => r.channels[ch] || 0),
-        r.total
-      ];
-      lines.push(cells.join(','));
-    }
-    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'sales_export_' + this._toDateInput(new Date()) + '.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  },
-
-  // === HELPERS ===
+  // ==========================================================================
+  // FORMATTING
+  // ==========================================================================
   _fmtRp(v) {
     if (v == null || isNaN(v)) return 'Rp 0';
+    const f = this.moneyFormat;
+    if (f === 'full') {
+      return 'Rp ' + Math.round(v).toLocaleString('id-ID');
+    }
+    if (f === 'million') {
+      return 'Rp ' + Math.round(v / 1e6).toLocaleString('id-ID') + ' JT';
+    }
+    if (f === 'thousand') {
+      return 'Rp ' + Math.round(v / 1e3).toLocaleString('id-ID') + ' Rb';
+    }
+    // auto
     if (v >= 1e9) return 'Rp ' + (v / 1e9).toFixed(2).replace('.', ',') + ' M';
-    if (v >= 1e6) return 'Rp ' + Math.round(v / 1e6) + ' jt';
-    if (v >= 1e3) return 'Rp ' + Math.round(v / 1e3) + ' rb';
+    if (v >= 1e6) return 'Rp ' + Math.round(v / 1e6).toLocaleString('id-ID') + ' JT';
+    if (v >= 1e3) return 'Rp ' + Math.round(v / 1e3).toLocaleString('id-ID') + ' Rb';
     return 'Rp ' + Math.round(v);
+  },
+  _fmtShort(v) {
+    // Untuk axis chart — selalu kompak
+    if (v >= 1e9) return (v / 1e9).toFixed(1).replace('.', ',') + 'M';
+    if (v >= 1e6) return Math.round(v / 1e6) + 'jt';
+    if (v >= 1e3) return Math.round(v / 1e3) + 'rb';
+    return v;
   },
   _formatRange() {
     const from = document.getElementById('fFrom').value;
@@ -524,13 +653,14 @@ const App = {
     return this._formatDateShort(from) + ' – ' + this._formatDateShort(to);
   },
   _formatDateShort(s) {
-    const [y, m, d] = s.split('-');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const [, m, d] = s.split('-');
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
     return parseInt(d) + ' ' + months[parseInt(m) - 1];
   },
   _formatDateID(s) {
+    if (!s) return '';
     const [y, m, d] = s.split('-');
-    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     return parseInt(d) + ' ' + months[parseInt(m) - 1] + ' ' + y;
   },
   _latestDate() {
@@ -538,21 +668,22 @@ const App = {
     return this.data.reduce((max, r) => r.date > max ? r.date : max, '');
   },
   _shortBranch(b) {
-    // "Labbaik Chicken - Nama Cabang" -> "Nama Cabang"
     const m = b.match(/^[^-]+-\s*(.+)$/);
     return m ? m[1].trim() : b;
   },
   _escape(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   },
   _toast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.hidden = false;
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => t.hidden = true, 3000);
+    this._toastTimer = setTimeout(() => t.hidden = true, 3500);
   }
 };
 
-// Boot
+// Alias untuk backward compat (dipakai di _renderChannel)
+const CHANNELS_ORDER = ['DINE IN','TAKE AWAY','GRABFOOD','GOFOOD','SHOPEE FOOD','BAZAR','CATERING','ESB Order Delivery','ESB Order Pickup','PAKAR'];
+
 document.addEventListener('DOMContentLoaded', () => App.init());
