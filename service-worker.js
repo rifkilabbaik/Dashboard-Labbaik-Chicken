@@ -1,5 +1,5 @@
 // Service Worker — cache app shell untuk PWA
-const CACHE_NAME = 'sales-dashboard-v2';
+const CACHE_NAME = 'sales-dashboard-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const APP_SHELL = [
   './css/style.css',
   './js/config.js',
   './js/sheets.js',
-  './js/upload.js',
+  './js/dropdown.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -39,11 +39,9 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // App shell: cache-first, fallback ke network
   e.respondWith(
     caches.match(e.request).then(cached => {
       return cached || fetch(e.request).then(res => {
-        // Cache versi baru
         if (res && res.status === 200 && e.request.method === 'GET') {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(e.request, clone)).catch(() => {});
