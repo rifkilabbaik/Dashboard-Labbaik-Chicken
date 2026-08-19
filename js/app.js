@@ -103,6 +103,7 @@ const App = {
 
   async loadData() {
     document.getElementById('lastUpdate').textContent = 'Memuat data...';
+    this._hideDiagnostic();
     try {
       this.data = await Sheets.fetchAll();
       this._populateBranches();
@@ -111,7 +112,8 @@ const App = {
       this._applyFilters();
 
       if (this.data.length === 0) {
-        document.getElementById('lastUpdate').textContent = 'Belum ada data · silakan upload file Excel';
+        document.getElementById('lastUpdate').textContent = 'Fetch berhasil tapi data kosong';
+        this._showDiagnostic('empty');
       } else {
         const latest = this._latestDate();
         const dateCount = new Set(this.data.map(r => r.date)).size;
@@ -122,8 +124,40 @@ const App = {
       }
     } catch (e) {
       document.getElementById('lastUpdate').textContent = 'Gagal memuat: ' + e.message;
-      this._toast(e.message);
+      this._showDiagnostic('error', e.message);
     }
+  },
+
+  _showDiagnostic(type, msg) {
+    let banner = document.getElementById('diagBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'diagBanner';
+      banner.style.cssText = 'background:#FFF4E6;border:0.5px solid #E8C88C;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#5B4A20;';
+      const container = document.querySelector('.container');
+      container.insertBefore(banner, container.firstChild);
+    }
+    const testUrl = CONFIG.APPS_SCRIPT_URL + '?action=fetch&_t=' + Date.now();
+    if (type === 'empty') {
+      banner.innerHTML =
+        '<div style="font-weight:500;margin-bottom:6px;">Data tidak muncul?</div>' +
+        '<div style="margin-bottom:8px;">Fetch ke Apps Script berhasil tapi return 0 baris. Kemungkinan:</div>' +
+        '<ul style="margin:0 0 10px 20px;padding:0;">' +
+        '<li>Sheet tab-nya bukan bernama <code>Sales</code> (harus huruf besar-kecil persis)</li>' +
+        '<li>Apps Script belum di-<b>redeploy versi baru</b> setelah update Code.gs</li>' +
+        '<li>Data ditulis ke sheet lain (bukan "Sales")</li>' +
+        '</ul>' +
+        '<a href="' + testUrl + '" target="_blank" rel="noopener" style="color:#4A90B8;">Buka Apps Script URL untuk lihat raw response &rarr;</a>';
+    } else {
+      banner.innerHTML =
+        '<div style="font-weight:500;margin-bottom:6px;">Error: ' + this._escape(msg) + '</div>' +
+        '<a href="' + testUrl + '" target="_blank" rel="noopener" style="color:#4A90B8;">Test Apps Script URL langsung &rarr;</a>';
+    }
+  },
+
+  _hideDiagnostic() {
+    const b = document.getElementById('diagBanner');
+    if (b) b.remove();
   },
 
   /**
