@@ -18,6 +18,7 @@ class Dropdown {
     this.opts = opts || {};
     this.items = opts.items || [];
     this.multi = opts.multi || false;
+    this.noAll = opts.noAll || false;  // Kalau true, tidak ada opsi "Semua"
     this.placeholder = opts.placeholder || 'Cari...';
     this.allLabel = opts.allLabel || 'Semua';
     this.onChange = opts.onChange || (() => {});
@@ -62,7 +63,12 @@ class Dropdown {
       }
     } else {
       if (!this.value) {
-        label = this.allLabel;
+        // Kalau noAll dan value kosong, coba pakai item pertama
+        if (this.noAll && this.items.length > 0) {
+          label = this.items[0].label;
+        } else {
+          label = this.allLabel;
+        }
       } else {
         const it = this.items.find(i => i.value === this.value);
         label = it ? it.label : this.value;
@@ -183,14 +189,14 @@ class Dropdown {
     let items = this.items;
     if (q) items = items.filter(i => i.label.toLowerCase().includes(q));
 
-    // Untuk single-select, tambahkan opsi "Semua" di awal
+    // Untuk single-select, tambahkan opsi "Semua" di awal (kecuali noAll)
     let html = '';
-    if (!this.multi) {
+    if (!this.multi && !this.noAll) {
       const isAll = this.value === '';
       html += '<div class="dd-item ' + (isAll ? 'selected' : '') + '" data-value="">' +
               '<span class="dd-item-label">' + this._escape(this.allLabel) + '</span>' +
               '</div>';
-    } else {
+    } else if (this.multi) {
       const allSelected = this._tempValue.length === this.items.length;
       html += '<div class="dd-item dd-item-all">' +
               '<label>' +
