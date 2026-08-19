@@ -33,9 +33,7 @@ const CONFIG = {
   },
 
   MONEY_FORMATS: {
-    auto:     { label: 'Otomatis (Rp 1,2 M / 1.200 JT)', short: 'Otomatis' },
-    million:  { label: 'Juta (Rp 1.200 JT)', short: 'Juta' },
-    thousand: { label: 'Ribuan (Rp 1.200.000 Rb)', short: 'Ribuan' },
-    full:     { label: 'Penuh (Rp 1.200.000.000)', short: 'Penuh' }
+    auto: { label: 'Otomatis (Rp 1,2 M / 500 JT)', short: 'Otomatis' },
+    full: { label: 'Penuh (Rp 1.200.000.000)', short: 'Penuh' }
   }
 };
