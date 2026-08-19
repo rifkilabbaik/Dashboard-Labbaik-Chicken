@@ -1,5 +1,5 @@
 // Service Worker — cache app shell untuk PWA
-const CACHE_NAME = 'sales-dashboard-v5';
+const CACHE_NAME = 'sales-dashboard-v6';
 const APP_SHELL = [
   './',
   './index.html',
