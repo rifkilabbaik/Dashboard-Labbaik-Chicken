@@ -11,11 +11,21 @@ const Sheets = {
     if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.startsWith('PASTE')) {
       throw new Error('APPS_SCRIPT_URL belum dikonfigurasi. Buka js/config.js dan isi URL Apps Script Anda.');
     }
-    const url = CONFIG.APPS_SCRIPT_URL + '?action=fetch';
-    const res = await fetch(url, { method: 'GET' });
+    // Cache-buster supaya browser & Google tidak return cached response
+    const url = CONFIG.APPS_SCRIPT_URL + '?action=fetch&_t=' + Date.now();
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
     if (!res.ok) throw new Error('Gagal terhubung ke Google Sheets (HTTP ' + res.status + ')');
-    const json = await res.json();
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      // Response bukan JSON — kemungkinan HTML login page atau error page
+      console.error('Response bukan JSON:', text.substring(0, 500));
+      throw new Error('Response dari Apps Script bukan JSON. Cek deployment access = "Anyone" dan sudah re-deploy versi baru.');
+    }
     if (json.status !== 'ok') throw new Error(json.error || 'Gagal ambil data');
+    console.log('Sheets fetch OK:', (json.data || []).length, 'baris diterima');
     return json.data || [];
   },
 
