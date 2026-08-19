@@ -107,15 +107,43 @@ const App = {
       this.data = await Sheets.fetchAll();
       this._populateBranches();
       this._populateChannels();
+      this._autoAdjustFilter();
       this._applyFilters();
-      const latest = this._latestDate();
-      document.getElementById('lastUpdate').textContent = latest
-        ? 'Data terakhir · ' + this._formatDateID(latest) + ' · Google Sheets tersinkron'
-        : 'Belum ada data · silakan upload file Excel';
+
+      if (this.data.length === 0) {
+        document.getElementById('lastUpdate').textContent = 'Belum ada data · silakan upload file Excel';
+      } else {
+        const latest = this._latestDate();
+        const dateCount = new Set(this.data.map(r => r.date)).size;
+        document.getElementById('lastUpdate').textContent =
+          'Data terakhir · ' + this._formatDateID(latest) +
+          ' · ' + this.data.length.toLocaleString('id-ID') + ' baris · ' +
+          this.branches.length + ' branch · ' + dateCount + ' tanggal';
+      }
     } catch (e) {
       document.getElementById('lastUpdate').textContent = 'Gagal memuat: ' + e.message;
       this._toast(e.message);
     }
+  },
+
+  /**
+   * Jika filter default (bulan berjalan) tidak punya data,
+   * otomatis geser ke bulan terbaru yang punya data.
+   */
+  _autoAdjustFilter() {
+    if (this.data.length === 0) return;
+    const from = document.getElementById('fFrom').value;
+    const to = document.getElementById('fTo').value;
+    const inRange = this.data.some(r => r.date >= from && r.date <= to);
+    if (inRange) return;
+
+    // Fallback: gunakan bulan dari tanggal terbaru di data
+    const latest = this._latestDate();
+    const [y, m] = latest.split('-');
+    const firstOfMonth = y + '-' + m + '-01';
+    document.getElementById('fFrom').value = firstOfMonth;
+    document.getElementById('fTo').value = latest;
+    document.getElementById('fPeriode').value = 'custom';
   },
 
   _populateBranches() {
