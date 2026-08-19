@@ -167,11 +167,11 @@ const App = {
 
     // Top/Low group — items dinamis, akan di-update saat filter berubah
     this.dd.topGroup = new Dropdown(document.getElementById('ddTopGroup'), {
-      items: [], value: this.topGroup, allLabel: 'Per toko',
+      items: [], value: this.topGroup, noAll: true, placeholder: 'Cari level...',
       onChange: (v) => { this.topGroup = v; this._saveSetting('topGroup', v); this._renderRanks(); }
     });
     this.dd.lowGroup = new Dropdown(document.getElementById('ddLowGroup'), {
-      items: [], value: this.lowGroup, allLabel: 'Per toko',
+      items: [], value: this.lowGroup, noAll: true, placeholder: 'Cari level...',
       onChange: (v) => { this.lowGroup = v; this._saveSetting('lowGroup', v); this._renderRanks(); }
     });
   },
