@@ -7,7 +7,8 @@ const UploadParser = {
     step('Membaca file...', 10);
     const buf = await file.arrayBuffer();
     step('Parsing spreadsheet...', 25);
-    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    // cellDates:false supaya date jadi number serial (bukan Date object) — hindari bug timezone XLSX library
+    const wb = XLSX.read(buf, { type: 'array', cellDates: false });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
 
