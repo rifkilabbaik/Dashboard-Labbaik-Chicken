@@ -24,6 +24,7 @@ const App = {
   theme: 'auto',
   topGroup: 'branch', topCount: 5,
   lowGroup: 'branch', lowCount: 5,
+  matrixCount: 10,
   currentPage: 'dashboard',
   _uploadCtx: null,
 
@@ -36,6 +37,11 @@ const App = {
     this._bindFilterModal();
     this._bindUploadModal();
     this._bindSettingsPage();
+
+    // Bind missing modal close
+    document.querySelectorAll('#missingModal [data-close]').forEach(el => {
+      el.addEventListener('click', () => document.getElementById('missingModal').hidden = true);
+    });
 
     this._setPeriodePreset('current');
     this._captureFilter();
@@ -53,6 +59,8 @@ const App = {
     this.lowGroup = localStorage.getItem('lowGroup') || 'branch';
     this.topCount = parseInt(localStorage.getItem('topCount')) || 5;
     this.lowCount = parseInt(localStorage.getItem('lowCount')) || 5;
+    this.matrixCount = parseInt(localStorage.getItem('matrixCount')) || 10;
+    this.fontFamily = localStorage.getItem('fontFamily') || 'default';
   },
   _save(k, v) { localStorage.setItem(k, v); },
 
@@ -65,6 +73,9 @@ const App = {
       const isDark = this.theme === 'dark' || (this.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       meta.content = isDark ? '#1A1D21' : '#F7F4EC';
     }
+    // Apply font
+    const font = CONFIG.FONT_OPTIONS[this.fontFamily] || CONFIG.FONT_OPTIONS.default;
+    root.style.setProperty('--font-sans', font.stack);
   },
 
   // ==========================================================================
@@ -106,8 +117,8 @@ const App = {
     modal.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => this._closeFilterModal()));
     document.getElementById('filterOk').addEventListener('click', () => this._applyFilterAndClose());
     document.getElementById('filterReset').addEventListener('click', () => this._resetFilter());
-    document.getElementById('fPeriode').addEventListener('change', (e) => this._setPeriodePreset(e.target.value));
-    ['fFrom','fTo'].forEach(id => document.getElementById(id).addEventListener('change', () => document.getElementById('fPeriode').value = 'custom'));
+    document.getElementById('fPeriode').addEventListener('change', (e) => { this._setPeriodePreset(e.target.value); this._updateRangeLabel(); });
+    document.getElementById('fRangeTrigger').addEventListener('click', () => this._openRangePicker());
     document.getElementById('fRegional').addEventListener('change', () => this._onFilterRegionalChange());
     document.getElementById('fArea').addEventListener('change', () => this._onFilterAreaChange());
     document.getElementById('fBranch').addEventListener('change', () => this._onFilterBranchChange());
@@ -118,6 +129,7 @@ const App = {
     document.getElementById('fPeriode').value = this.filter.periode;
     document.getElementById('fFrom').value = this.filter.from;
     document.getElementById('fTo').value = this.filter.to;
+    this._updateRangeLabel();
     document.getElementById('fRegional').value = this.filter.regional;
     this._onFilterRegionalChange(true);
     document.getElementById('fArea').value = this.filter.area;
@@ -176,7 +188,15 @@ const App = {
   },
 
   _setPeriodePreset(mode) {
-    const now = new Date();
+    // Basis "hari ini" = tanggal data terakhir di spreadsheet, bukan tanggal sistem
+    let now;
+    const latestStr = this._latestDate();
+    if (latestStr) {
+      const [ly, lm, ld] = latestStr.split('-').map(Number);
+      now = new Date(ly, lm - 1, ld);
+    } else {
+      now = new Date();
+    }
     let from, to = now;
     if (mode === 'current') from = new Date(now.getFullYear(), now.getMonth(), 1);
     else if (mode === 'last') { from = new Date(now.getFullYear(), now.getMonth() - 1, 1); to = new Date(now.getFullYear(), now.getMonth(), 0); }
@@ -186,6 +206,12 @@ const App = {
     else return;
     document.getElementById('fFrom').value = this._toDateStr(from);
     document.getElementById('fTo').value = this._toDateStr(to);
+    this._updateRangeLabel();
+  },
+
+  _latestDate() {
+    if (this.data.length === 0) return null;
+    return this.data.reduce((max, r) => r.date > max ? r.date : max, '');
   },
 
   _captureFilter() {
@@ -213,6 +239,7 @@ const App = {
   _resetFilter() {
     document.getElementById('fPeriode').value = 'current';
     this._setPeriodePreset('current');
+    this._updateRangeLabel();
     document.getElementById('fRegional').value = '';
     document.getElementById('fArea').value = '';
     document.getElementById('fBranch').value = '';
@@ -220,33 +247,147 @@ const App = {
     this._onFilterRegionalChange();
   },
 
+  // === Date Range Picker ===
+  _updateRangeLabel() {
+    const from = document.getElementById('fFrom').value;
+    const to = document.getElementById('fTo').value;
+    const label = document.getElementById('fRangeLabel');
+    if (!from || !to) { label.textContent = 'Pilih tanggal...'; return; }
+    if (from === to) label.textContent = this._formatShort(from) + ' ' + from.split('-')[0];
+    else label.textContent = this._formatShort(from) + ' – ' + this._formatShort(to) + ' ' + to.split('-')[0];
+  },
+
+  _openRangePicker() {
+    this._rangeFrom = document.getElementById('fFrom').value || null;
+    this._rangeTo = document.getElementById('fTo').value || null;
+    this._rangeStep = 0; // 0=next click sets from, 1=next click sets to
+    // Set calendar month to fFrom's month, atau latest date
+    const anchor = this._rangeFrom || this._latestDate() || this._toDateStr(new Date());
+    const [ay, am] = anchor.split('-').map(Number);
+    this._rangeViewYear = ay;
+    this._rangeViewMonth = am - 1; // 0-indexed
+    this._renderRangeCalendar();
+    document.getElementById('rangeModal').hidden = false;
+
+    // Bind close & OK
+    const modal = document.getElementById('rangeModal');
+    modal.querySelectorAll('[data-close]').forEach(el => {
+      el.onclick = () => modal.hidden = true;
+    });
+    document.getElementById('rangeOk').onclick = () => {
+      if (this._rangeFrom && this._rangeTo) {
+        // Pastikan from <= to
+        if (this._rangeFrom > this._rangeTo) {
+          const tmp = this._rangeFrom;
+          this._rangeFrom = this._rangeTo;
+          this._rangeTo = tmp;
+        }
+        document.getElementById('fFrom').value = this._rangeFrom;
+        document.getElementById('fTo').value = this._rangeTo;
+        document.getElementById('fPeriode').value = 'custom';
+        this._updateRangeLabel();
+      }
+      modal.hidden = true;
+    };
+  },
+
+  _renderRangeCalendar() {
+    const y = this._rangeViewYear;
+    const m = this._rangeViewMonth;
+    const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const dowNames = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
+    const first = new Date(y, m, 1);
+    const startOffset = (first.getDay() + 6) % 7; // Sen=0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    let html = `<div class="cal-nav">
+      <button class="cal-nav-btn" id="calPrev">‹</button>
+      <div class="cal-title">${monthNames[m]} ${y}</div>
+      <button class="cal-nav-btn" id="calNext">›</button>
+    </div>`;
+    html += '<div class="cal-mini">';
+    html += '<div class="cal-mini-head">' + dowNames.map(n => `<div>${n}</div>`).join('') + '</div>';
+    html += '<div class="cal-mini-grid">';
+    for (let i = 0; i < startOffset; i++) html += '<div class="cal-mini-cell empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      let cls = 'cal-mini-cell';
+      // Range highlight
+      if (this._rangeFrom && this._rangeTo) {
+        const [lo, hi] = this._rangeFrom < this._rangeTo ? [this._rangeFrom, this._rangeTo] : [this._rangeTo, this._rangeFrom];
+        if (ds === lo) cls += ' range-start';
+        else if (ds === hi) cls += ' range-end';
+        else if (ds > lo && ds < hi) cls += ' range-mid';
+      } else if (this._rangeFrom && ds === this._rangeFrom) cls += ' range-start';
+      html += `<div class="${cls}" data-d="${ds}">${d}</div>`;
+    }
+    html += '</div></div>';
+    // Info
+    const info = document.getElementById('rangeInfo');
+    if (!this._rangeFrom) info.textContent = 'Klik tanggal pertama untuk "Dari"';
+    else if (!this._rangeTo) info.textContent = 'Dari: ' + this._formatFull(this._rangeFrom) + ' — Klik tanggal untuk "Sampai"';
+    else {
+      const [lo, hi] = this._rangeFrom < this._rangeTo ? [this._rangeFrom, this._rangeTo] : [this._rangeTo, this._rangeFrom];
+      info.innerHTML = this._formatFull(lo) + ' <b>—</b> ' + this._formatFull(hi);
+    }
+    document.getElementById('rangeCalendar').innerHTML = html;
+    // Bind cells
+    document.getElementById('calPrev').onclick = () => {
+      if (--this._rangeViewMonth < 0) { this._rangeViewMonth = 11; this._rangeViewYear--; }
+      this._renderRangeCalendar();
+    };
+    document.getElementById('calNext').onclick = () => {
+      if (++this._rangeViewMonth > 11) { this._rangeViewMonth = 0; this._rangeViewYear++; }
+      this._renderRangeCalendar();
+    };
+    document.querySelectorAll('#rangeCalendar .cal-mini-cell[data-d]').forEach(cell => {
+      cell.onclick = () => this._rangePickDay(cell.dataset.d);
+    });
+  },
+
+  _rangePickDay(ds) {
+    if (this._rangeStep === 0) {
+      // Klik pertama = set Dari, reset To
+      this._rangeFrom = ds;
+      this._rangeTo = null;
+      this._rangeStep = 1;
+    } else {
+      // Klik kedua = set Sampai
+      this._rangeTo = ds;
+      this._rangeStep = 0;
+    }
+    this._renderRangeCalendar();
+  },
+
   _updateFilterSummary() {
     const parts = [];
     if (this.applied.regional) parts.push(this.applied.regional);
     if (this.applied.area) parts.push(this.applied.area);
     if (this.applied.branch) parts.push(this._short(this.applied.branch));
-    if (this.applied.channels && this.applied.channels.length > 0) {
+    if (this.applied.channels && this.applied.channels.length > 0 && this.applied.channels.length < CONFIG.CHANNELS.length) {
       parts.push(this.applied.channels.length + ' channel');
     }
     const bar = document.getElementById('filterSummary');
     const badge = document.getElementById('filterCount');
-    if (parts.length > 0) {
-      bar.hidden = false;
-      bar.innerHTML = `<span><b>${parts.length} filter aktif:</b> ${parts.map(this._esc).join(' · ')}</span><span class="reset" id="fQuickReset">Reset</span>`;
-      document.getElementById('fQuickReset').addEventListener('click', () => {
-        this._resetFilter();
-        this._captureFilter();
-        this.applied = { ...this.filter };
-        this._computeFiltered();
-        this._renderAll();
-        this._updateFilterSummary();
-      });
-      badge.hidden = false;
-      badge.textContent = parts.length;
-    } else {
+    if (parts.length === 0) {
       bar.hidden = true;
+      bar.innerHTML = '';
       badge.hidden = true;
+      badge.textContent = '';
+      return;
     }
+    bar.hidden = false;
+    bar.innerHTML = `<span><b>${parts.length} filter aktif:</b> ${parts.map(p => this._esc(p)).join(' · ')}</span><span class="reset" id="fQuickReset">Reset</span>`;
+    document.getElementById('fQuickReset').addEventListener('click', () => {
+      this._resetFilter();
+      this._captureFilter();
+      this.applied = { ...this.filter };
+      this._computeFiltered();
+      this._renderAll();
+      this._updateFilterSummary();
+    });
+    badge.hidden = false;
+    badge.textContent = parts.length;
   },
 
   // ==========================================================================
@@ -264,6 +405,14 @@ const App = {
       this.regional = regional;
       this.status = status;
       this._buildBranchMeta();
+      // Setelah data ada, kalau periode = preset (bukan custom), re-apply supaya pakai tanggal data terbaru
+      if (this.applied && this.applied.periode && this.applied.periode !== 'custom') {
+        this._setPeriodePreset(this.applied.periode);
+        this.applied.from = document.getElementById('fFrom').value;
+        this.applied.to = document.getElementById('fTo').value;
+        this.filter.from = this.applied.from;
+        this.filter.to = this.applied.to;
+      }
       this._computeFiltered();
       this._populateFilterOptions();
       this._renderAll();
@@ -335,8 +484,11 @@ const App = {
     const days = new Set(this.filtered.map(r => r.date)).size;
     const avg = days > 0 ? total / days : 0;
     const branchCount = new Set(this.filtered.map(r => r.branch)).size;
-    const scoped = this._scopedBranches().length;
     const growth = this._computeGrowth();
+    const scoped = this._scopedBranches();
+    const scopedSet = new Set(scoped);
+    const activeSet = new Set(this.filtered.map(r => r.branch));
+    const missing = scoped.filter(b => !activeSet.has(b));
 
     document.getElementById('dSales').textContent = this._fmtRp(total);
     document.getElementById('dSalesSub').textContent = days + ' hari · ' + this._formatShort(this.applied.from) + ' – ' + this._formatShort(this.applied.to);
@@ -344,8 +496,18 @@ const App = {
     document.getElementById('dGrowth').style.color = growth.color;
     document.getElementById('dGrowthSub').textContent = growth.sub;
     document.getElementById('dAvg').textContent = this._fmtRp(avg);
-    document.getElementById('dBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + scoped + '</span>';
-    document.getElementById('dBranchSub').textContent = (scoped - branchCount) + ' tanpa transaksi';
+    const dBranchEl = document.getElementById('dBranch');
+    dBranchEl.innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + scoped.length + '</span>';
+    const dBranchSubEl = document.getElementById('dBranchSub');
+    if (missing.length > 0) {
+      dBranchSubEl.innerHTML = `<a href="#" class="link-underline" id="dMissingLink">${missing.length} tanpa transaksi</a>`;
+      document.getElementById('dMissingLink').addEventListener('click', (e) => {
+        e.preventDefault();
+        this._showMissingBranches(missing);
+      });
+    } else {
+      dBranchSubEl.textContent = 'Semua toko ada transaksi';
+    }
 
     // Top 5 branches (compact)
     const topB = this._groupSum(this.filtered, r => r.branch, r => r.total).slice(0, 5);
@@ -363,53 +525,61 @@ const App = {
 
   _computeGrowth() {
     const { from, to } = this.applied;
-    if (!from || !to) return { text: '—', color: 'var(--sea)', sub: '—' };
-    const fromD = new Date(from), toD = new Date(to);
-    const dayCount = Math.round((toD - fromD) / 86400000) + 1;
-    const prevTo = new Date(fromD); prevTo.setDate(prevTo.getDate() - 1);
-    const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - dayCount + 1);
-    const pFromS = this._toDateStr(prevFrom), pToS = this._toDateStr(prevTo);
+    if (!from || !to) return { text: '—', color: 'var(--ink-2)', sub: '—' };
+    // Perbandingan: tanggal SAMA di bulan sebelumnya
+    const prev = this._prevMonthRange(from, to);
+    const pFromS = prev.from, pToS = prev.to;
 
     const useMap = this.regional.length > 0;
     const scoped = new Set(this._scopedBranches());
     const a = this.applied;
     const channelFilter = a.channels && a.channels.length > 0 && a.channels.length < CONFIG.CHANNELS.length;
 
-    const prev = this.data.filter(r => {
+    const prevRows = this.data.filter(r => {
       if (r.date < pFromS || r.date > pToS) return false;
       if (a.branch) return r.branch === a.branch;
       if (useMap && (a.regional || a.area)) return scoped.has(r.branch);
       return true;
     });
-    const prevTotal = prev.reduce((s, r) => {
+    const prevTotal = prevRows.reduce((s, r) => {
       if (channelFilter) return s + a.channels.reduce((x, c) => x + (r.channels[c] || 0), 0);
       return s + r.total;
     }, 0);
-    const prevDays = new Set(prev.map(r => r.date)).size;
-    const prevAvg = prevDays > 0 ? prevTotal / prevDays : 0;
     const curTotal = this.filtered.reduce((s, r) => s + r.total, 0);
-    const curDays = new Set(this.filtered.map(r => r.date)).size;
-    const curAvg = curDays > 0 ? curTotal / curDays : 0;
-    if (prevAvg === 0) return { text: '—', color: 'var(--sea)', sub: 'Data periode sebelumnya belum tersedia' };
-    const g = ((curAvg - prevAvg) / prevAvg) * 100;
+    if (prevTotal === 0) return { text: '—', color: 'var(--ink-2)', sub: 'Data ' + this._formatShort(pFromS) + ' – ' + this._formatShort(pToS) + ' belum tersedia' };
+    const g = ((curTotal - prevTotal) / prevTotal) * 100;
     return {
       text: (g >= 0 ? '+' : '') + g.toFixed(1) + '%',
-      color: g >= 0 ? 'var(--sea)' : 'var(--danger)',
+      color: g >= 0 ? 'var(--success)' : 'var(--danger)',
       sub: 'vs ' + this._formatShort(pFromS) + ' – ' + this._formatShort(pToS)
     };
+  },
+
+  /**
+   * Ambil rentang di bulan sebelumnya dengan tanggal yang sama.
+   * Contoh: 2026-08-01 s/d 2026-08-18 → 2026-07-01 s/d 2026-07-18
+   */
+  _prevMonthRange(fromStr, toStr) {
+    const [fy, fm, fd] = fromStr.split('-').map(Number);
+    const [ty, tm, td] = toStr.split('-').map(Number);
+    const shift = (y, m, d) => {
+      let ny = y, nm = m - 1;
+      if (nm < 1) { nm = 12; ny--; }
+      // Clamp tanggal (misal 31 Mei → 30 Apr)
+      const daysInMonth = new Date(ny, nm, 0).getDate();
+      const nd = Math.min(d, daysInMonth);
+      return ny + '-' + String(nm).padStart(2,'0') + '-' + String(nd).padStart(2,'0');
+    };
+    return { from: shift(fy, fm, fd), to: shift(ty, tm, td) };
   },
 
   _computeInsights() {
     if (this.filtered.length === 0) return '<div style="color:var(--ink-3);font-size:13px;">Belum ada data untuk insight.</div>';
 
     const insights = [];
-    // 1. Top channel growth (vs periode lalu)
-    const { from, to } = this.applied;
-    const fromD = new Date(from), toD = new Date(to);
-    const dayCount = Math.round((toD - fromD) / 86400000) + 1;
-    const prevTo = new Date(fromD); prevTo.setDate(prevTo.getDate() - 1);
-    const prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate() - dayCount + 1);
-    const pFromS = this._toDateStr(prevFrom), pToS = this._toDateStr(prevTo);
+    // 1. Top channel growth (vs periode lalu — bulan lalu tanggal sama)
+    const prev = this._prevMonthRange(this.applied.from, this.applied.to);
+    const pFromS = prev.from, pToS = prev.to;
     const scoped = new Set(this._scopedBranches());
     const useMap = this.regional.length > 0;
     const a = this.applied;
@@ -431,8 +601,8 @@ const App = {
     if (chGrowth[0] && chGrowth[0].growth > 5) {
       insights.push({
         icon: '↗',
-        color: 'var(--sea)',
-        text: `<b>${this._esc(CONFIG.CHANNEL_DISPLAY[chGrowth[0].c] || chGrowth[0].c)}</b> tumbuh paling cepat (<b>+${chGrowth[0].growth.toFixed(1)}%</b> vs periode lalu)`
+        color: 'var(--success)',
+        text: `<b>${this._esc(CONFIG.CHANNEL_DISPLAY[chGrowth[0].c] || chGrowth[0].c)}</b> tumbuh paling cepat (<b>+${chGrowth[0].growth.toFixed(1)}%</b> vs bulan lalu)`
       });
     }
     if (chGrowth.length > 1 && chGrowth[chGrowth.length - 1].growth < -5) {
@@ -440,7 +610,7 @@ const App = {
       insights.push({
         icon: '↘',
         color: 'var(--danger)',
-        text: `<b>${this._esc(CONFIG.CHANNEL_DISPLAY[x.c] || x.c)}</b> turun paling dalam (<b>${x.growth.toFixed(1)}%</b> vs periode lalu)`
+        text: `<b>${this._esc(CONFIG.CHANNEL_DISPLAY[x.c] || x.c)}</b> turun paling dalam (<b>${x.growth.toFixed(1)}%</b> vs bulan lalu)`
       });
     }
 
@@ -456,7 +626,7 @@ const App = {
     if (brGrowthArr[0] && brGrowthArr[0][1] > 10) {
       insights.push({
         icon: '★',
-        color: 'var(--sea)',
+        color: 'var(--success)',
         text: `Toko trending naik: <b>${this._esc(this._short(brGrowthArr[0][0]))}</b> (<b>+${brGrowthArr[0][1].toFixed(1)}%</b>)`
       });
     }
@@ -519,7 +689,9 @@ const App = {
     const days = new Set(this.filtered.map(r => r.date)).size;
     const avg = days > 0 ? total / days : 0;
     const branchCount = new Set(this.filtered.map(r => r.branch)).size;
-    const scoped = this._scopedBranches().length;
+    const scoped = this._scopedBranches();
+    const activeSet = new Set(this.filtered.map(r => r.branch));
+    const missing = scoped.filter(b => !activeSet.has(b));
     const growth = this._computeGrowth();
 
     document.getElementById('sSales').textContent = this._fmtRp(total);
@@ -528,18 +700,26 @@ const App = {
     document.getElementById('sGrowth').style.color = growth.color;
     document.getElementById('sGrowthSub').textContent = growth.sub;
     document.getElementById('sAvg').textContent = this._fmtRp(avg);
-    document.getElementById('sBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + scoped + '</span>';
-    document.getElementById('sBranchSub').textContent = (scoped - branchCount) + ' tanpa transaksi';
+    document.getElementById('sBranch').innerHTML = branchCount + ' <span style="font-size:13px;color:var(--ink-3);font-weight:400;">/ ' + scoped.length + '</span>';
+    const sBranchSubEl = document.getElementById('sBranchSub');
+    if (missing.length > 0) {
+      sBranchSubEl.innerHTML = `<a href="#" class="link-underline" id="sMissingLink">${missing.length} tanpa transaksi</a>`;
+      document.getElementById('sMissingLink').addEventListener('click', (e) => {
+        e.preventDefault();
+        this._showMissingBranches(missing);
+      });
+    } else {
+      sBranchSubEl.textContent = 'Semua toko ada transaksi';
+    }
 
     this._renderTrend('sTrendChart');
     this._renderChannelBreakdown('sChannels');
     this._renderDowChart();
     this._renderMonthlyChart();
-    this._renderCalendarHeatmap();
     this._renderTopLowControls();
     this._renderTopLow();
+    this._renderMatrixControls();
     this._renderChannelMatrix();
-    this._renderConsistency();
   },
 
   _renderChannelBreakdown(elId) {
@@ -664,70 +844,6 @@ const App = {
     });
   },
 
-  _renderCalendarHeatmap() {
-    // Group filtered by date
-    const dayMap = {};
-    this.filtered.forEach(r => { dayMap[r.date] = (dayMap[r.date] || 0) + r.total; });
-    const dates = Object.keys(dayMap).sort();
-    if (dates.length === 0) {
-      document.getElementById('sCalendar').innerHTML = '<div style="color:var(--ink-3);font-size:13px;">—</div>';
-      return;
-    }
-    const values = Object.values(dayMap);
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    // Build grid: minggu (row) × hari (col)
-    const first = new Date(dates[0]);
-    const last = new Date(dates[dates.length - 1]);
-    // Mulai dari Senin sebelum first date
-    const start = new Date(first);
-    start.setDate(start.getDate() - ((first.getDay() + 6) % 7));
-    // Akhir di Minggu setelah last date
-    const end = new Date(last);
-    end.setDate(end.getDate() + (6 - ((last.getDay() + 6) % 7)));
-    const monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-    const dowNames = ['Sen','Sel','Rab','Kam','Jum','Sab','Min'];
-
-    let html = '<div class="cal-wrap">';
-    html += '<div class="cal-dow">' + dowNames.map(n => `<div>${n}</div>`).join('') + '</div>';
-    html += '<div class="cal-grid">';
-    let cur = new Date(start);
-    let currentMonth = -1;
-    while (cur <= end) {
-      const dstr = this._toDateStr(cur);
-      const v = dayMap[dstr] || 0;
-      const inRange = cur >= first && cur <= last;
-      let cls = 'cal-cell';
-      let title = this._formatFull(dstr);
-      if (v > 0) {
-        const norm = max > min ? (v - min) / (max - min) : 1;
-        let level = 0;
-        if (norm > 0.75) level = 4;
-        else if (norm > 0.5) level = 3;
-        else if (norm > 0.25) level = 2;
-        else level = 1;
-        cls += ' l' + level;
-        title += ' · ' + this._fmtRp(v);
-      } else if (!inRange) {
-        cls += ' empty';
-      } else {
-        cls += ' zero';
-        title += ' · tidak ada data';
-      }
-      // Kalau tanggal 1, label bulan
-      if (cur.getDate() === 1 && cur.getMonth() !== currentMonth) {
-        currentMonth = cur.getMonth();
-        html += `<div class="cal-cell cal-label" title="${monthNames[cur.getMonth()]} ${cur.getFullYear()}">${monthNames[cur.getMonth()].charAt(0)}</div>`;
-      } else {
-        html += `<div class="${cls}" title="${title}"></div>`;
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-    html += '</div></div>';
-    html += '<div class="cal-legend"><span>Rendah</span><div class="cal-cell l1"></div><div class="cal-cell l2"></div><div class="cal-cell l3"></div><div class="cal-cell l4"></div><span>Tinggi</span></div>';
-    document.getElementById('sCalendar').innerHTML = html;
-  },
-
   _renderTopLowControls() {
     const a = this.applied;
     let levels;
@@ -778,10 +894,16 @@ const App = {
     const build = (group) => {
       const map = {};
       this.filtered.forEach(r => {
+        const meta = this.branchMeta[r.branch];
         let k;
         if (group === 'branch') k = r.branch;
-        else if (group === 'area') k = (this.branchMeta[r.branch] || {}).area || '(tanpa area)';
-        else k = (this.branchMeta[r.branch] || {}).regional || '(tanpa regional)';
+        else if (group === 'area') {
+          if (!meta || !meta.area) return; // skip toko tanpa mapping area
+          k = meta.area;
+        } else {
+          if (!meta || !meta.regional) return; // skip toko tanpa mapping regional
+          k = meta.regional;
+        }
         map[k] = (map[k] || 0) + r.total;
       });
       return Object.entries(map).map(([k, v]) => ({ key: k, val: v })).filter(x => x.val > 0);
@@ -792,13 +914,27 @@ const App = {
     document.getElementById('sLowList').innerHTML = this._renderRank(low, this.lowGroup === 'branch');
   },
 
+  _renderMatrixControls() {
+    document.getElementById('sMatrixControls').innerHTML =
+      `<span style="font-size:11px;color:var(--ink-3);">Top</span>
+       <input type="number" min="1" max="100" class="btn" value="${this.matrixCount}" style="width:56px; padding:6px 8px; font-size:12px; text-align:center;" />
+       <span style="font-size:11px;color:var(--ink-3);">toko</span>`;
+    const inp = document.getElementById('sMatrixControls').querySelector('input');
+    inp.addEventListener('change', () => {
+      let v = parseInt(inp.value) || 10;
+      if (v < 1) v = 1; if (v > 100) v = 100;
+      inp.value = v;
+      this.matrixCount = v;
+      this._save('matrixCount', v);
+      this._renderChannelMatrix();
+    });
+  },
+
   _renderChannelMatrix() {
-    // Table: rows = top 10 toko by total, cols = channels (sorted by total), cells = % kontribusi channel di toko itu
     const totals = {};
     this.filtered.forEach(r => { totals[r.branch] = (totals[r.branch] || 0) + r.total; });
-    const topBranches = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([b]) => b);
+    const topBranches = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, this.matrixCount).map(([b]) => b);
 
-    // Channel totals for column order
     const chTotals = {};
     CONFIG.CHANNELS.forEach(c => { chTotals[c] = 0; });
     this.filtered.forEach(r => CONFIG.CHANNELS.forEach(c => { chTotals[c] += (r.channels[c] || 0); }));
@@ -809,7 +945,6 @@ const App = {
       return;
     }
 
-    // Build data per branch per channel
     const cellMap = {};
     topBranches.forEach(b => {
       cellMap[b] = { total: 0 };
@@ -844,50 +979,6 @@ const App = {
     document.getElementById('sMatrix').innerHTML = html;
   },
 
-  _renderConsistency() {
-    // Untuk tiap toko dalam filter, hitung mean & std dev per hari
-    const branchDays = {};
-    this.filtered.forEach(r => {
-      (branchDays[r.branch] = branchDays[r.branch] || []).push(r.total);
-    });
-    const arr = [];
-    Object.entries(branchDays).forEach(([b, vals]) => {
-      if (vals.length < 3) return;
-      const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
-      const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
-      const std = Math.sqrt(variance);
-      const cv = mean > 0 ? (std / mean) * 100 : 0;
-      arr.push({ branch: b, mean, cv });
-    });
-    if (arr.length === 0) {
-      document.getElementById('sConsistency').innerHTML = '<div style="color:var(--ink-3);font-size:13px;">Perlu minimal 3 hari data per toko.</div>';
-      return;
-    }
-    arr.sort((a, b) => a.cv - b.cv);
-    const stable = arr.slice(0, 5);
-    const fluct = arr.slice(-5).reverse();
-
-    const renderList = (items) => items.map(x => `
-      <div class="rank-row">
-        <div class="rank-left"><span class="rank-name">${this._esc(this._short(x.branch))}</span></div>
-        <span class="rank-meta">CV ${x.cv.toFixed(1)}%</span>
-        <span class="rank-amount">${this._fmtRp(x.mean)}/hari</span>
-      </div>
-    `).join('');
-
-    document.getElementById('sConsistency').innerHTML = `
-      <div style="margin-bottom:12px;">
-        <div style="font-size:11px; color:var(--ink-3); margin-bottom:6px; letter-spacing:0.06em; text-transform:uppercase;">Paling stabil (CV rendah)</div>
-        ${renderList(stable)}
-      </div>
-      <div>
-        <div style="font-size:11px; color:var(--ink-3); margin-bottom:6px; letter-spacing:0.06em; text-transform:uppercase;">Paling fluktuatif (CV tinggi)</div>
-        ${renderList(fluct)}
-      </div>
-      <div style="font-size:11px; color:var(--ink-3); margin-top:10px;">CV = koefisien variasi. Semakin rendah = sales harian semakin konsisten.</div>
-    `;
-  },
-
   // ---- SETTINGS ----
   _bindSettingsPage() {
     document.querySelectorAll('#themeToggle button').forEach(b => {
@@ -907,6 +998,18 @@ const App = {
         this.moneyFormat = inp.value;
         this._save('moneyFormat', inp.value);
         this._renderAll();
+      });
+    });
+    // Font options
+    const fo = document.getElementById('fontOptions');
+    fo.innerHTML = Object.entries(CONFIG.FONT_OPTIONS).map(([k, v]) =>
+      `<label style="font-family:${v.stack};"><input type="radio" name="ff" value="${k}"${this.fontFamily === k ? ' checked' : ''}/><span>${this._esc(v.label)}</span></label>`
+    ).join('');
+    fo.querySelectorAll('input[name="ff"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        this.fontFamily = inp.value;
+        this._save('fontFamily', inp.value);
+        this._applyTheme();
       });
     });
     const sl = document.getElementById('linkSheet');
@@ -1157,6 +1260,35 @@ const App = {
       <div class="rank-left"><span class="rank-num">${i + 1}</span><span class="rank-name">${this._esc(isBranch ? this._short(it.key) : it.key)}</span></div>
       <span class="rank-amount">${this._fmtRp(it.val)}</span>
     </div>`).join('');
+  },
+
+  _showMissingBranches(list) {
+    const modal = document.getElementById('missingModal');
+    const listEl = document.getElementById('missingList');
+    // Group by regional > area
+    const grouped = {};
+    list.forEach(b => {
+      const meta = this.branchMeta[b] || {};
+      const reg = meta.regional || '(tanpa regional)';
+      const area = meta.area || '(tanpa area)';
+      if (!grouped[reg]) grouped[reg] = {};
+      if (!grouped[reg][area]) grouped[reg][area] = [];
+      grouped[reg][area].push(b);
+    });
+    let html = '';
+    Object.keys(grouped).sort().forEach(reg => {
+      html += `<div class="missing-group"><div class="missing-group-head">${this._esc(reg)}</div>`;
+      Object.keys(grouped[reg]).sort().forEach(area => {
+        html += `<div class="missing-area">${this._esc(area)}</div>`;
+        grouped[reg][area].sort().forEach(b => {
+          html += `<div class="missing-row">${this._esc(this._short(b))}</div>`;
+        });
+      });
+      html += '</div>';
+    });
+    listEl.innerHTML = html || '<div style="color:var(--ink-3);font-size:13px;">—</div>';
+    document.getElementById('missingCount').textContent = list.length + ' toko tanpa transaksi pada periode ini';
+    modal.hidden = false;
   },
   _fmtRp(v) {
     if (v == null || isNaN(v)) return 'Rp 0';
