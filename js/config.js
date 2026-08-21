@@ -17,5 +17,13 @@ const CONFIG = {
     auto:  'Otomatis (ikut sistem)',
     light: 'Terang',
     dark:  'Gelap'
+  },
+
+  FONT_OPTIONS: {
+    default:   { label: 'Default (sistem)',         stack: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif" },
+    rounded:   { label: 'Rounded (bulat)',           stack: "'SF Pro Rounded', 'Nunito', 'Quicksand', ui-rounded, system-ui, sans-serif" },
+    serif:     { label: 'Serif (klasik)',            stack: "'Iowan Old Style', 'Georgia', 'Times New Roman', serif" },
+    mono:      { label: 'Monospace',                 stack: "'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace" },
+    condensed: { label: 'Condensed (rapat)',         stack: "'Roboto Condensed', 'PT Sans Narrow', 'Segoe UI', system-ui, sans-serif" }
   }
 };
