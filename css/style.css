@@ -905,3 +905,322 @@ a:hover { text-decoration: underline; }
   font-size: 13px;
   color: var(--ink);
 }
+
+/* ============================================================================
+   v6 additions — dashboard cards, sort chips, tabs, tables, dropdown-select
+   ============================================================================ */
+
+/* Metric hero (Total penjualan) */
+.metric-hero {
+  background: var(--bone-2);
+  border: 0.5px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 20px;
+  cursor: pointer;
+  transition: background 120ms, transform 80ms;
+  position: relative;
+}
+.metric-hero:hover { background: var(--line); }
+.metric-hero:active { transform: scale(0.995); }
+.metric-hero-label { font-size: 13px; color: var(--ink-2); }
+.metric-hero-value {
+  font-size: 28px;
+  font-weight: 500;
+  margin-top: 6px;
+  letter-spacing: -0.02em;
+}
+.metric-hero-growth {
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 6px;
+}
+.metric-hero-hint {
+  font-size: 10px;
+  color: var(--ink-3);
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Grouped metric cards */
+.metric-groups {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 720px) {
+  .metric-groups { grid-template-columns: 1fr 1fr 1fr; }
+}
+.metric-group-card {
+  background: var(--bone-2);
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 120ms, transform 80ms;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+.metric-group-card:hover { background: var(--line); }
+.metric-group-card:active { transform: scale(0.995); }
+.mg-head { display: flex; justify-content: space-between; align-items: center; }
+.mg-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.mg-growth { font-size: 12px; font-weight: 500; }
+.mg-value {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.mg-children {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 0.5px solid var(--line);
+}
+.mg-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.mg-child-label { color: var(--ink-2); }
+.mg-child-val { font-variant-numeric: tabular-nums; }
+.mg-hint {
+  font-size: 9px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: auto;
+}
+
+/* Sort chip (Regional/Area) */
+.sort-chip {
+  background: var(--bone);
+  border: 0.5px solid var(--line-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms;
+}
+.sort-chip:hover { background: var(--sea-2); color: var(--sea); border-color: var(--sea-3); }
+
+/* Tab chips row */
+.tabs-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.tabs-row::-webkit-scrollbar { display: none; }
+.tabs-row.sort-tabs { margin-top: -4px; }
+.tab-chip {
+  background: var(--bone);
+  border: 0.5px solid var(--line);
+  color: var(--ink-2);
+  font-size: 12px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tab-chip.active {
+  background: var(--sea-2);
+  color: var(--sea);
+  border-color: var(--sea-3);
+  font-weight: 500;
+}
+.tab-chip:hover { border-color: var(--sea-3); }
+
+/* Sub-filter grid (toko level) */
+.sub-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sub-filter label {
+  font-size: 11px;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 4px;
+}
+.sub-filter select {
+  width: 100%;
+  background: var(--bone-2);
+  border: 0.5px solid var(--line-2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+/* Sales table */
+.stbl-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.stbl {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  min-width: 320px;
+}
+.stbl th, .stbl td {
+  padding: 8px 8px;
+  border-bottom: 0.5px solid var(--line);
+  text-align: left;
+}
+.stbl th {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--bone);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.stbl-name {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.ta-r { text-align: right !important; font-variant-numeric: tabular-nums; }
+.stbl tbody tr:hover { background: var(--bone); }
+
+/* Percentage bar in contribution mode */
+.pct-bar {
+  width: 60px;
+  height: 5px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: auto;
+}
+.pct-fill {
+  height: 100%;
+  background: var(--sea);
+  border-radius: 2px;
+  transition: width 300ms;
+}
+.pct-txt { font-size: 10px; color: var(--ink-2); margin-top: 2px; }
+
+/* Dropdown-select (Settings) */
+.dropdown-select { position: relative; }
+.dd-btn {
+  width: 100%;
+  background: var(--bone-2);
+  border: 0.5px solid var(--line-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 120ms;
+}
+.dd-btn:hover { border-color: var(--sea); }
+.dd-arrow { color: var(--ink-3); font-size: 12px; }
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bone-2);
+  border: 0.5px solid var(--line-2);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dd-opt {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 100ms;
+}
+.dd-opt:hover { background: var(--line); }
+.dd-opt.active {
+  background: var(--sea-2);
+  color: var(--sea);
+  font-weight: 500;
+}
+
+/* Detail modal list */
+.detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 10px;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--bone);
+  border-radius: 8px;
+  gap: 12px;
+}
+.detail-label { font-size: 13px; color: var(--ink-2); }
+.detail-val {
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
+.detail-sub { font-size: 11px; font-weight: 400; margin-top: 2px; }
+.detail-section {
+  font-size: 10px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 12px 12px 4px;
+  border-top: 0.5px solid var(--line);
+  margin-top: 8px;
+}
+.detail-section:first-child { border-top: none; margin-top: 0; }
+
+/* Topbar filter button — sekarang tampilkan periode */
+.topbar-filter-btn { min-width: 0; }
+.topbar-filter-btn span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+
+/* Mobile refinements */
+@media (max-width: 640px) {
+  .metric-hero-value { font-size: 24px; }
+  .mg-value { font-size: 17px; }
+  .metric-groups { grid-template-columns: 1fr; }
+  .stbl th, .stbl td { padding: 7px 6px; font-size: 11px; }
+  .stbl-name { max-width: 120px; }
+  .pct-bar { width: 40px; }
+  .topbar-filter-btn span { max-width: 100px; font-size: 11px; }
+}

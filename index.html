@@ -15,7 +15,7 @@
   <div class="splash" id="splash">
     <div class="spinner"></div>
     <div class="splash-title">Sales Dashboard</div>
-    <div class="splash-sub" id="splashSub">Memuat data...</div>
+    <div class="splash-sub" id="splashSub">Memuat...</div>
   </div>
 
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -50,101 +50,100 @@
       </button>
       <div class="topbar-title" id="pageTitle">Dasbor</div>
       <button class="topbar-filter-btn" id="btnFilter">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        Filter <span class="filter-count" id="filterCount" hidden></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="periodLabel">—</span>
       </button>
     </div>
   </header>
 
   <main class="container">
-    <div id="filterSummary" class="filter-summary" hidden></div>
 
     <!-- DASHBOARD -->
     <section class="page active" data-page="dashboard">
-      <div class="metrics">
-        <div class="metric-card"><div class="metric-label">Total sales</div><div class="metric-value" id="dSales">—</div><div class="metric-sub" id="dSalesSub">—</div></div>
-        <div class="metric-card accent"><div class="metric-label">Growth vs periode sebelumnya</div><div class="metric-value" id="dGrowth">—</div><div class="metric-sub" id="dGrowthSub">—</div></div>
-        <div class="metric-card"><div class="metric-label">Rata-rata harian</div><div class="metric-value" id="dAvg">—</div><div class="metric-sub">per hari</div></div>
-        <div class="metric-card"><div class="metric-label">Toko aktif</div><div class="metric-value" id="dBranch">—</div><div class="metric-sub" id="dBranchSub">—</div></div>
+      <!-- Total penjualan card besar -->
+      <div class="metric-hero" id="mcTotal">
+        <div class="metric-hero-label">Total penjualan</div>
+        <div class="metric-hero-value" id="mvTotal">—</div>
+        <div class="metric-hero-growth" id="mvTotalGrowth">—</div>
+        <div class="metric-hero-hint">Klik untuk detail</div>
       </div>
 
+      <!-- Grouped metric cards: Offline / Online / Catering -->
+      <div class="metric-groups" id="metricGroups"></div>
+
+      <!-- Penjualan Regional (dengan sort click) -->
       <div class="panel">
-        <div class="panel-head"><div class="panel-label">Insight otomatis</div></div>
-        <div id="dInsight" class="insight-list"></div>
+        <div class="panel-head">
+          <div class="panel-label">Penjualan Regional</div>
+          <button class="sort-chip" id="sortRegional" data-mode="name">Nama ▾</button>
+        </div>
+        <div id="regionalList" class="rank-list"></div>
       </div>
 
-      <div class="two-col">
-        <div class="panel">
-          <div class="panel-head"><div class="panel-label">Top 5 toko</div></div>
-          <div id="dTopBranches" class="rank-list"></div>
+      <!-- Penjualan Area -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label">Penjualan Area</div>
+          <button class="sort-chip" id="sortArea" data-mode="name">Nama ▾</button>
         </div>
-        <div class="panel">
-          <div class="panel-head"><div class="panel-label">Sales channel</div></div>
-          <div id="dChannels" class="channel-list"></div>
-        </div>
+        <div id="areaList" class="rank-list"></div>
       </div>
 
+      <!-- Trend harian -->
       <div class="panel">
         <div class="panel-head"><div class="panel-label">Tren harian</div></div>
         <div class="chart-wrap"><canvas id="dTrendChart"></canvas></div>
+      </div>
+
+      <!-- Top / Low 10 toko -->
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head"><div class="panel-label">10 Toko tertinggi</div></div>
+          <div id="dTop10" class="rank-list"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div class="panel-label">10 Toko terendah</div></div>
+          <div id="dLow10" class="rank-list"></div>
+        </div>
       </div>
     </section>
 
     <!-- SALES -->
     <section class="page" data-page="sales">
-      <div class="metrics">
-        <div class="metric-card"><div class="metric-label">Total sales</div><div class="metric-value" id="sSales">—</div><div class="metric-sub" id="sSalesSub">—</div></div>
-        <div class="metric-card accent"><div class="metric-label">Growth</div><div class="metric-value" id="sGrowth">—</div><div class="metric-sub" id="sGrowthSub">—</div></div>
-        <div class="metric-card"><div class="metric-label">Rata-rata harian</div><div class="metric-value" id="sAvg">—</div><div class="metric-sub">per hari</div></div>
-        <div class="metric-card"><div class="metric-label">Toko aktif</div><div class="metric-value" id="sBranch">—</div><div class="metric-sub" id="sBranchSub">—</div></div>
+      <div class="tabs-row">
+        <button class="tab-chip active" data-metric="total">Total & growth</button>
+        <button class="tab-chip" data-metric="channel">Per channel</button>
+        <button class="tab-chip" data-metric="contribution">Kontribusi channel</button>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><div class="panel-label">Tren harian</div></div>
-        <div class="chart-wrap"><canvas id="sTrendChart"></canvas></div>
+      <div class="tabs-row">
+        <button class="tab-chip active" data-level="regional">Regional</button>
+        <button class="tab-chip" data-level="area">Area</button>
+        <button class="tab-chip" data-level="branch">Toko</button>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><div class="panel-label">Sales channel</div></div>
-        <div id="sChannels" class="channel-list"></div>
-      </div>
-
-      <div class="two-col">
-        <div class="panel">
-          <div class="panel-head"><div class="panel-label">Rata-rata per hari dalam seminggu</div></div>
-          <div class="chart-wrap compact"><canvas id="sDowChart"></canvas></div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><div class="panel-label">Perbandingan bulanan (12 bulan)</div></div>
-          <div class="chart-wrap compact"><canvas id="sMonthlyChart"></canvas></div>
-        </div>
-      </div>
-
-      <div class="two-col" id="sTopLowWrap">
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-label">Top sales</div>
-            <div class="panel-controls" id="sTopControls"></div>
+      <div id="tokoSubFilter" hidden>
+        <div class="sub-filter">
+          <div>
+            <label>Regional</label>
+            <select id="tsRegional"><option value="">Semua</option></select>
           </div>
-          <div id="sTopList" class="rank-list"></div>
-        </div>
-        <div class="panel">
-          <div class="panel-head">
-            <div class="panel-label">Low sales</div>
-            <div class="panel-controls" id="sLowControls"></div>
+          <div>
+            <label>Area</label>
+            <select id="tsArea"><option value="">Semua</option></select>
           </div>
-          <div id="sLowList" class="rank-list"></div>
         </div>
       </div>
 
-      <div class="single-branch-note" id="sSingleNote" hidden>Top & Low disembunyikan karena filter menampilkan satu toko.</div>
+      <div class="tabs-row sort-tabs">
+        <button class="tab-chip active" data-sort="salesDesc">Sales ↓</button>
+        <button class="tab-chip" data-sort="salesAsc">Sales ↑</button>
+        <button class="tab-chip" data-sort="growthDesc">Growth ↓</button>
+        <button class="tab-chip" data-sort="growthAsc">Growth ↑</button>
+      </div>
 
       <div class="panel">
-        <div class="panel-head">
-          <div class="panel-label">Kontribusi channel per toko</div>
-          <div class="panel-controls" id="sMatrixControls"></div>
-        </div>
-        <div id="sMatrix"></div>
+        <div id="salesTable"></div>
       </div>
     </section>
 
@@ -152,32 +151,26 @@
     <section class="page" data-page="settings">
       <div class="panel">
         <div class="setting-label">Tampilan</div>
-        <div class="theme-toggle" id="themeToggle">
-          <button data-theme="auto">Otomatis</button>
-          <button data-theme="light">Terang</button>
-          <button data-theme="dark">Gelap</button>
-        </div>
+        <div class="dropdown-select" data-key="theme"></div>
       </div>
-
       <div class="panel">
         <div class="setting-label">Format uang</div>
-        <div class="setting-options" id="moneyFormatOptions"></div>
+        <div class="dropdown-select" data-key="money"></div>
       </div>
-
       <div class="panel">
-        <div class="setting-label">Font tampilan</div>
-        <div class="setting-options" id="fontOptions"></div>
+        <div class="setting-label">Format text</div>
+        <div class="dropdown-select" data-key="font"></div>
       </div>
 
       <div class="panel">
         <div class="setting-label">Info data</div>
         <div class="info-list">
           <div class="info-row"><span class="info-key">Status</span><span class="info-val" id="stStatus">—</span></div>
-          <div class="info-row"><span class="info-key">Update terakhir</span><span class="info-val" id="stLastUpdate">—</span></div>
+          <div class="info-row"><span class="info-key">Data terakhir</span><span class="info-val" id="stLastDate">—</span></div>
           <div class="info-row"><span class="info-key">Total baris</span><span class="info-val" id="stRowCount">—</span></div>
           <div class="info-row"><span class="info-key">Hari tersimpan</span><span class="info-val" id="stDays">—</span></div>
-          <div class="info-row"><span class="info-key">Data terakhir</span><span class="info-val" id="stLastDate">—</span></div>
           <div class="info-row"><span class="info-key">Toko aktif</span><span class="info-val" id="stActive">—</span></div>
+          <div class="info-row"><span class="info-key">Cache</span><span class="info-val" id="stCache">—</span></div>
         </div>
         <button class="btn btn-block" id="btnReload" style="margin-top:10px;">Muat ulang data</button>
       </div>
@@ -198,25 +191,25 @@
       <div class="panel">
         <div class="setting-label">Aplikasi</div>
         <div class="info-list">
-          <div class="info-row"><span class="info-key">Versi</span><span class="info-val">v5.0</span></div>
-          <div class="info-row"><span class="info-key">Cache</span><span class="info-val"><button class="btn" style="padding:4px 10px; font-size:11px;" id="btnClearCache">Bersihkan</button></span></div>
+          <div class="info-row"><span class="info-key">Versi</span><span class="info-val">v6.0</span></div>
+          <div class="info-row"><span class="info-key">Cache app</span><span class="info-val"><button class="btn" style="padding:4px 10px; font-size:11px;" id="btnClearCache">Bersihkan</button></span></div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- FILTER MODAL -->
+  <!-- FILTER (PERIODE) MODAL -->
   <div class="modal" id="filterModal" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Filter</div>
+        <div class="modal-title">Filter periode</div>
         <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
       </div>
       <div class="modal-sub">Berlaku untuk semua halaman</div>
 
       <div class="filter-row">
-        <label>Periode</label>
+        <label>Preset</label>
         <select id="fPeriode">
           <option value="current">Bulan berjalan</option>
           <option value="last">Bulan lalu</option>
@@ -226,22 +219,11 @@
           <option value="custom">Rentang khusus</option>
         </select>
       </div>
-      <div class="filter-row filter-row-2col">
-        <div style="grid-column: 1 / -1;">
-          <label>Rentang tanggal</label>
-          <button class="range-trigger" id="fRangeTrigger" type="button">
-            <span id="fRangeLabel">—</span>
-          </button>
-          <input type="hidden" id="fFrom" />
-          <input type="hidden" id="fTo" />
-        </div>
-      </div>
-      <div class="filter-row"><label>Regional</label><select id="fRegional"></select></div>
-      <div class="filter-row"><label>Area</label><select id="fArea"></select></div>
-      <div class="filter-row"><label>Nama toko</label><select id="fBranch"></select></div>
       <div class="filter-row">
-        <label>Channel</label>
-        <div id="fChannelList" class="check-list"></div>
+        <label>Rentang tanggal</label>
+        <button class="range-trigger" id="fRangeTrigger" type="button"><span id="fRangeLabel">—</span></button>
+        <input type="hidden" id="fFrom" />
+        <input type="hidden" id="fTo" />
       </div>
 
       <div class="modal-actions">
@@ -249,6 +231,36 @@
         <button class="btn" data-close>Batal</button>
         <button class="btn btn-primary" id="filterOk">OK</button>
       </div>
+    </div>
+  </div>
+
+  <!-- DATE RANGE POPUP -->
+  <div class="modal" id="rangeModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card" style="max-width:340px;">
+      <div class="modal-header">
+        <div class="modal-title">Pilih rentang tanggal</div>
+        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-sub"><span id="rangeInfo">Klik tanggal pertama untuk "Dari"</span></div>
+      <div id="rangeCalendar"></div>
+      <div class="modal-actions">
+        <button class="btn" data-close>Batal</button>
+        <button class="btn btn-primary" id="rangeOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- METRIC DETAIL MODAL -->
+  <div class="modal" id="detailModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title" id="detailTitle">Detail</div>
+        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+      </div>
+      <div id="detailBody"></div>
+      <div class="modal-actions"><button class="btn btn-primary" data-close>Tutup</button></div>
     </div>
   </div>
 
@@ -274,37 +286,6 @@
       <div id="uploadResult" hidden></div>
       <div id="uploadError" hidden></div>
       <div id="uploadActions" class="modal-actions" hidden></div>
-    </div>
-  </div>
-
-  <!-- DATE RANGE POPUP -->
-  <div class="modal" id="rangeModal" hidden>
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-card" style="max-width:340px;">
-      <div class="modal-header">
-        <div class="modal-title">Pilih rentang tanggal</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
-      </div>
-      <div class="modal-sub"><span id="rangeInfo">Klik tanggal pertama untuk "Dari"</span></div>
-      <div id="rangeCalendar"></div>
-      <div class="modal-actions">
-        <button class="btn" data-close>Batal</button>
-        <button class="btn btn-primary" id="rangeOk">OK</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MISSING BRANCHES MODAL -->
-  <div class="modal" id="missingModal" hidden>
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Toko tanpa transaksi</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
-      </div>
-      <div class="modal-sub" id="missingCount">—</div>
-      <div id="missingList"></div>
-      <div class="modal-actions"><button class="btn btn-primary" data-close>Tutup</button></div>
     </div>
   </div>
 

@@ -171,6 +171,8 @@ function _upload(rows) {
     return line;
   });
   const lastRow = sheet.getLastRow();
+  // Paksa kolom Sales Date (kolom 1) jadi TEXT supaya tidak ada konversi timezone
+  sheet.getRange(lastRow + 1, 1, arr.length, 1).setNumberFormat('@');
   sheet.getRange(lastRow + 1, 1, arr.length, HEADERS.DATA.length).setValues(arr);
   return { added: arr.length };
 }
@@ -201,14 +203,21 @@ function _getSheet(name, headers) {
 }
 
 function _normalizeDate(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (v instanceof Date) {
+    // Pakai spreadsheet timezone (bukan script timezone) supaya konsisten dgn cara Sheets simpan
+    const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+    return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  }
   if (typeof v === 'string') {
     let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (m) return m[1] + '-' + _pad(m[2]) + '-' + _pad(m[3]);
     m = v.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
     if (m) return m[3] + '-' + _pad(m[2]) + '-' + _pad(m[1]);
     const d = new Date(v);
-    if (!isNaN(d)) return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    if (!isNaN(d)) {
+      const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+      return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    }
   }
   return null;
 }
