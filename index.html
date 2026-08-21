@@ -120,11 +120,6 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><div class="panel-label">Heatmap kalender</div></div>
-        <div id="sCalendar"></div>
-      </div>
-
       <div class="two-col" id="sTopLowWrap">
         <div class="panel">
           <div class="panel-head">
@@ -145,13 +140,11 @@
       <div class="single-branch-note" id="sSingleNote" hidden>Top & Low disembunyikan karena filter menampilkan satu toko.</div>
 
       <div class="panel">
-        <div class="panel-head"><div class="panel-label">Kontribusi channel per toko (top 10)</div></div>
+        <div class="panel-head">
+          <div class="panel-label">Kontribusi channel per toko</div>
+          <div class="panel-controls" id="sMatrixControls"></div>
+        </div>
         <div id="sMatrix"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><div class="panel-label">Konsistensi harian per toko</div></div>
-        <div id="sConsistency"></div>
       </div>
     </section>
 
@@ -169,6 +162,11 @@
       <div class="panel">
         <div class="setting-label">Format uang</div>
         <div class="setting-options" id="moneyFormatOptions"></div>
+      </div>
+
+      <div class="panel">
+        <div class="setting-label">Font tampilan</div>
+        <div class="setting-options" id="fontOptions"></div>
       </div>
 
       <div class="panel">
@@ -229,8 +227,14 @@
         </select>
       </div>
       <div class="filter-row filter-row-2col">
-        <div><label>Dari</label><input type="date" id="fFrom" /></div>
-        <div><label>Sampai</label><input type="date" id="fTo" /></div>
+        <div style="grid-column: 1 / -1;">
+          <label>Rentang tanggal</label>
+          <button class="range-trigger" id="fRangeTrigger" type="button">
+            <span id="fRangeLabel">—</span>
+          </button>
+          <input type="hidden" id="fFrom" />
+          <input type="hidden" id="fTo" />
+        </div>
       </div>
       <div class="filter-row"><label>Regional</label><select id="fRegional"></select></div>
       <div class="filter-row"><label>Area</label><select id="fArea"></select></div>
@@ -270,6 +274,37 @@
       <div id="uploadResult" hidden></div>
       <div id="uploadError" hidden></div>
       <div id="uploadActions" class="modal-actions" hidden></div>
+    </div>
+  </div>
+
+  <!-- DATE RANGE POPUP -->
+  <div class="modal" id="rangeModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card" style="max-width:340px;">
+      <div class="modal-header">
+        <div class="modal-title">Pilih rentang tanggal</div>
+        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-sub"><span id="rangeInfo">Klik tanggal pertama untuk "Dari"</span></div>
+      <div id="rangeCalendar"></div>
+      <div class="modal-actions">
+        <button class="btn" data-close>Batal</button>
+        <button class="btn btn-primary" id="rangeOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MISSING BRANCHES MODAL -->
+  <div class="modal" id="missingModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Toko tanpa transaksi</div>
+        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+      </div>
+      <div class="modal-sub" id="missingCount">—</div>
+      <div id="missingList"></div>
+      <div class="modal-actions"><button class="btn btn-primary" data-close>Tutup</button></div>
     </div>
   </div>
 
