@@ -23,45 +23,8 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
 }
 
-[data-theme="dark"] {
-  --bone: #1A1D21;
-  --bone-2: #22262B;
-  --ink: #E8E6E0;
-  --ink-2: #A0A5AD;
-  --ink-3: #6C7178;
-  --line: #2E3238;
-  --line-2: #3A3F46;
-  --sea: #6BB0D9;
-  --sea-hover: #7CBFE6;
-  --sea-2: #1E3A4A;
-  --sea-3: #2A5570;
-  --danger: #D97565;
-  --danger-bg: #3A1E1A;
-  --danger-fg: #F0A090;
-  --warn-bg: #3A2F1A;
-  --warn-fg: #E8C888;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bone: #1A1D21;
-    --bone-2: #22262B;
-    --ink: #E8E6E0;
-    --ink-2: #A0A5AD;
-    --ink-3: #6C7178;
-    --line: #2E3238;
-    --line-2: #3A3F46;
-    --sea: #6BB0D9;
-    --sea-hover: #7CBFE6;
-    --sea-2: #1E3A4A;
-    --sea-3: #2A5570;
-    --danger: #D97565;
-    --danger-bg: #3A1E1A;
-    --danger-fg: #F0A090;
-    --warn-bg: #3A2F1A;
-    --warn-fg: #E8C888;
-  }
-}
+/* Dark/light theme now handled by JS via palette CSS variables (see config.js PALETTES). */
+:root { --accent-2: var(--sea); }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -101,8 +64,23 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   animation: spin 800ms linear infinite;
 }
-.splash-title { font-size: 14px; font-weight: 500; color: var(--ink); }
-.splash-sub { font-size: 12px; color: var(--ink-2); margin-top: -12px; }
+.splash-sub { font-size: 13px; color: var(--ink-2); margin-top: 4px; letter-spacing: 0.02em; }
+
+/* Loading dots animation: '.' → '..' → '...' → repeat */
+.loading-dots::after {
+  content: '';
+  display: inline-block;
+  min-width: 18px;
+  text-align: left;
+  animation: loading-dots-anim 1.2s steps(4, end) infinite;
+}
+@keyframes loading-dots-anim {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -1104,7 +1082,12 @@ a:hover { text-decoration: underline; }
   text-overflow: ellipsis;
   max-width: 180px;
 }
-.ta-r { text-align: right !important; font-variant-numeric: tabular-nums; }
+.ta-r { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stbl th, .stbl td { white-space: nowrap; }
+.stbl-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.rp-num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stbl-clickable { cursor: pointer; }
+.stbl-clickable:hover { background: var(--bone); }
 .stbl tbody tr:hover { background: var(--bone); }
 
 /* Percentage bar in contribution mode */
@@ -1224,3 +1207,80 @@ a:hover { text-decoration: underline; }
   .pct-bar { width: 40px; }
   .topbar-filter-btn span { max-width: 100px; font-size: 11px; }
 }
+
+/* ============================================================================
+   v7 additions
+   ============================================================================ */
+
+/* Trend tabs (harian / mingguan / bulanan) */
+.trend-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bone);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.trend-tab {
+  background: transparent;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 150ms;
+}
+.trend-tab:hover { color: var(--ink); }
+.trend-tab.active {
+  background: var(--sea);
+  color: white;
+}
+
+.trend-hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Sales page sub-filter (2 dropdowns) */
+.sub-filter-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sub-filter-2col label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.sub-filter-2col .dropdown-select { width: 100%; }
+.sub-filter-2col .dd-btn { width: 100%; justify-content: space-between; }
+
+/* Storage percentage (large) */
+.storage-pct {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty note */
+.empty-note {
+  color: var(--ink-3);
+  font-size: 13px;
+  text-align: center;
+  padding: 20px 8px;
+}
+
+/* Ensure rank rows are clickable on dashboard */
+.rank-row:hover { background: var(--bone); }
+
+/* Dropdown fill width variant (for toko sub-filter) */
+.dropdown-select .dd-btn { display: flex; align-items: center; justify-content: space-between; }

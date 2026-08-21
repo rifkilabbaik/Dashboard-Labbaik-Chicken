@@ -14,33 +14,33 @@
 
   <div class="splash" id="splash">
     <div class="spinner"></div>
-    <div class="splash-title">Sales Dashboard</div>
-    <div class="splash-sub" id="splashSub">Memuat...</div>
+    <div class="splash-sub"><span data-i18n="loading">Memuat data</span><span class="loading-dots"></span></div>
   </div>
 
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
       <div class="sidebar-brand">Sales Dashboard</div>
-      <button class="icon-btn" id="sidebarClose" aria-label="Tutup">&times;</button>
+      <button class="icon-btn" id="sidebarClose" aria-label="Close">&times;</button>
     </div>
     <nav class="sidebar-nav">
       <button class="sidebar-item active" data-page="dashboard">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-        Dasbor
+        <span data-i18n="nav_dashboard">Dasbor</span>
       </button>
       <button class="sidebar-item" data-page="sales">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
-        Penjualan
+        <span data-i18n="nav_sales">Penjualan</span>
+      </button>
+      <button class="sidebar-item" data-page="upload">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span data-i18n="nav_upload">Upload data</span>
       </button>
       <button class="sidebar-item" data-page="settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        Pengaturan
+        <span data-i18n="nav_settings">Pengaturan</span>
       </button>
     </nav>
-    <div class="sidebar-footer">
-      <button class="btn btn-primary btn-block" id="sidebarUpload">Upload data</button>
-    </div>
   </aside>
 
   <header class="topbar">
@@ -60,232 +60,231 @@
 
     <!-- DASHBOARD -->
     <section class="page active" data-page="dashboard">
-      <!-- Total penjualan card besar -->
       <div class="metric-hero" id="mcTotal">
-        <div class="metric-hero-label">Total penjualan</div>
+        <div class="metric-hero-label" data-i18n="total_sales">Total penjualan</div>
         <div class="metric-hero-value" id="mvTotal">—</div>
         <div class="metric-hero-growth" id="mvTotalGrowth">—</div>
-        <div class="metric-hero-hint">Klik untuk detail</div>
+        <div class="metric-hero-hint" data-i18n="click_for_detail">Klik untuk detail</div>
       </div>
 
-      <!-- Grouped metric cards: Offline / Online / Catering -->
       <div class="metric-groups" id="metricGroups"></div>
 
-      <!-- Penjualan Regional (dengan sort click) -->
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-label">Penjualan Regional</div>
+          <div class="panel-label" data-i18n="sales_regional">Penjualan Regional</div>
           <button class="sort-chip" id="sortRegional" data-mode="name">Nama ▾</button>
         </div>
         <div id="regionalList" class="rank-list"></div>
       </div>
 
-      <!-- Penjualan Area -->
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-label">Penjualan Area</div>
+          <div class="panel-label" data-i18n="sales_area">Penjualan Area</div>
           <button class="sort-chip" id="sortArea" data-mode="name">Nama ▾</button>
         </div>
         <div id="areaList" class="rank-list"></div>
       </div>
 
-      <!-- Trend harian -->
+      <!-- Trend (harian/mingguan/bulanan tabs) -->
       <div class="panel">
-        <div class="panel-head"><div class="panel-label">Tren harian</div></div>
-        <div class="chart-wrap"><canvas id="dTrendChart"></canvas></div>
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="trend_title">Tren</div>
+          <div class="trend-tabs">
+            <button class="trend-tab active" data-trend="daily"   data-i18n="trend_daily">Harian</button>
+            <button class="trend-tab"        data-trend="weekly"  data-i18n="trend_weekly">Mingguan</button>
+            <button class="trend-tab"        data-trend="monthly" data-i18n="trend_monthly">Bulanan</button>
+          </div>
+        </div>
+        <div class="chart-wrap" id="dTrendWrap"><canvas id="dTrendChart"></canvas></div>
+        <div class="trend-hint" id="trendHint" data-i18n="trend_compare_hint">Ketuk grafik untuk perbandingan bulan lalu</div>
       </div>
 
-      <!-- Top / Low 10 toko -->
       <div class="two-col">
         <div class="panel">
-          <div class="panel-head"><div class="panel-label">10 Toko tertinggi</div></div>
+          <div class="panel-head"><div class="panel-label" data-i18n="top10">10 Toko penjualan tertinggi</div></div>
           <div id="dTop10" class="rank-list"></div>
         </div>
         <div class="panel">
-          <div class="panel-head"><div class="panel-label">10 Toko terendah</div></div>
+          <div class="panel-head"><div class="panel-label" data-i18n="low10">10 Toko penjualan terendah</div></div>
           <div id="dLow10" class="rank-list"></div>
         </div>
       </div>
     </section>
 
-    <!-- SALES -->
+    <!-- SALES: 3 sections stacked -->
     <section class="page" data-page="sales">
-      <div class="tabs-row">
-        <button class="tab-chip active" data-metric="total">Total & growth</button>
-        <button class="tab-chip" data-metric="channel">Per channel</button>
-        <button class="tab-chip" data-metric="contribution">Kontribusi channel</button>
+      <!-- Regional section -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="sales_regional">Penjualan Regional</div>
+          <button class="sort-chip" id="sortSalesRegional" data-mode="desc">Terbesar ▾</button>
+        </div>
+        <div id="salesRegionalTable"></div>
       </div>
 
-      <div class="tabs-row">
-        <button class="tab-chip active" data-level="regional">Regional</button>
-        <button class="tab-chip" data-level="area">Area</button>
-        <button class="tab-chip" data-level="branch">Toko</button>
+      <!-- Area section -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="sales_area">Penjualan Area</div>
+          <button class="sort-chip" id="sortSalesArea" data-mode="desc">Terbesar ▾</button>
+        </div>
+        <div id="salesAreaTable"></div>
       </div>
 
-      <div id="tokoSubFilter" hidden>
-        <div class="sub-filter">
+      <!-- Toko section -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="sales_store">Penjualan Toko</div>
+          <button class="sort-chip" id="sortSalesToko" data-mode="desc">Terbesar ▾</button>
+        </div>
+        <div class="sub-filter-2col">
           <div>
-            <label>Regional</label>
-            <select id="tsRegional"><option value="">Semua</option></select>
+            <label data-i18n="regional">Regional</label>
+            <div class="dropdown-select" data-key="tokoRegional"></div>
           </div>
           <div>
-            <label>Area</label>
-            <select id="tsArea"><option value="">Semua</option></select>
+            <label data-i18n="area">Area</label>
+            <div class="dropdown-select" data-key="tokoArea"></div>
           </div>
         </div>
-      </div>
-
-      <div class="tabs-row sort-tabs">
-        <button class="tab-chip active" data-sort="salesDesc">Sales ↓</button>
-        <button class="tab-chip" data-sort="salesAsc">Sales ↑</button>
-        <button class="tab-chip" data-sort="growthDesc">Growth ↓</button>
-        <button class="tab-chip" data-sort="growthAsc">Growth ↑</button>
-      </div>
-
-      <div class="panel">
-        <div id="salesTable"></div>
+        <div id="salesTokoTable"></div>
       </div>
     </section>
 
     <!-- SETTINGS -->
     <section class="page" data-page="settings">
       <div class="panel">
-        <div class="setting-label">Tampilan</div>
-        <div class="dropdown-select" data-key="theme"></div>
+        <div class="setting-label" data-i18n="setting_theme">Tema</div>
+        <div class="dropdown-select" data-key="palette"></div>
       </div>
+
       <div class="panel">
-        <div class="setting-label">Format uang</div>
+        <div class="setting-label" data-i18n="setting_language">Bahasa</div>
+        <div class="dropdown-select" data-key="lang"></div>
+      </div>
+
+      <div class="panel">
+        <div class="setting-label" data-i18n="setting_money">Format uang</div>
         <div class="dropdown-select" data-key="money"></div>
       </div>
+
       <div class="panel">
-        <div class="setting-label">Format text</div>
+        <div class="setting-label" data-i18n="setting_text">Format text</div>
         <div class="dropdown-select" data-key="font"></div>
       </div>
 
       <div class="panel">
-        <div class="setting-label">Info data</div>
+        <div class="setting-label" data-i18n="setting_info">Info data</div>
         <div class="info-list">
-          <div class="info-row"><span class="info-key">Status</span><span class="info-val" id="stStatus">—</span></div>
-          <div class="info-row"><span class="info-key">Data terakhir</span><span class="info-val" id="stLastDate">—</span></div>
-          <div class="info-row"><span class="info-key">Total baris</span><span class="info-val" id="stRowCount">—</span></div>
-          <div class="info-row"><span class="info-key">Hari tersimpan</span><span class="info-val" id="stDays">—</span></div>
-          <div class="info-row"><span class="info-key">Toko aktif</span><span class="info-val" id="stActive">—</span></div>
-          <div class="info-row"><span class="info-key">Cache</span><span class="info-val" id="stCache">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_status">Status</span><span class="info-val" id="stStatus">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_last_date">Data terakhir</span><span class="info-val" id="stLastDate">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_row_count">Total baris</span><span class="info-val" id="stRowCount">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_days">Hari tersimpan</span><span class="info-val" id="stDays">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_active_stores">Toko aktif</span><span class="info-val" id="stActive">—</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_cache">Cache</span><span class="info-val" id="stCache">—</span></div>
         </div>
-        <button class="btn btn-block" id="btnReload" style="margin-top:10px;">Muat ulang data</button>
+        <button class="btn btn-block" id="btnReload" style="margin-top:10px;" data-i18n="setting_reload">Muat ulang data</button>
       </div>
 
       <div class="panel">
-        <div class="setting-label">Kapasitas spreadsheet</div>
-        <div style="font-size:12px; color:var(--ink-2); margin-bottom:6px;"><span id="stCapText">—</span></div>
+        <div class="setting-label" data-i18n="setting_storage">Penyimpanan</div>
+        <div class="storage-pct" id="stCapText">—</div>
         <div class="capacity-bar"><div class="capacity-fill" id="stCapFill" style="width:0%"></div></div>
-        <div style="font-size:11px; color:var(--ink-3); margin-top:6px;" id="stCapNote"></div>
       </div>
 
       <div class="panel">
-        <div class="setting-label">Sumber data</div>
-        <div class="setting-desc">Data disimpan di Google Sheets.</div>
-        <a class="btn btn-block" id="linkSheet" target="_blank" rel="noopener">Buka Spreadsheet</a>
+        <div class="setting-label" data-i18n="setting_source">Sumber data</div>
+        <a class="btn btn-block" id="linkSheet" target="_blank" rel="noopener" data-i18n="setting_open_sheet">Buka Spreadsheet</a>
       </div>
 
       <div class="panel">
-        <div class="setting-label">Aplikasi</div>
+        <div class="setting-label" data-i18n="setting_app">Aplikasi</div>
         <div class="info-list">
-          <div class="info-row"><span class="info-key">Versi</span><span class="info-val">v6.0</span></div>
-          <div class="info-row"><span class="info-key">Cache app</span><span class="info-val"><button class="btn" style="padding:4px 10px; font-size:11px;" id="btnClearCache">Bersihkan</button></span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_version">Versi</span><span class="info-val">v7.0</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_cache_app">Cache app</span><span class="info-val"><button class="btn" style="padding:4px 10px; font-size:11px;" id="btnClearCache" data-i18n="setting_clear_cache">Bersihkan</button></span></div>
         </div>
+      </div>
+    </section>
+
+    <!-- UPLOAD page (was modal, now a menu page) -->
+    <section class="page" data-page="upload">
+      <div class="panel">
+        <div class="setting-label" data-i18n="upload_title">Upload data</div>
+
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-title" data-i18n="upload_drag">Tarik file ke sini</div>
+          <div class="dropzone-or" data-i18n="upload_or">atau</div>
+          <button class="btn" id="btnPickFile" data-i18n="upload_pick">Pilih file .xlsx</button>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+        </div>
+
+        <div id="filePreview" hidden></div>
+        <div id="uploadResult" hidden></div>
+        <div id="uploadError" hidden></div>
+        <div id="uploadActions" class="modal-actions" hidden></div>
       </div>
     </section>
   </main>
 
   <!-- FILTER (PERIODE) MODAL -->
   <div class="modal" id="filterModal" hidden>
-    <div class="modal-backdrop" data-close></div>
+    <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Filter periode</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+        <div class="modal-title" data-i18n="filter_period">Filter periode</div>
       </div>
-      <div class="modal-sub">Berlaku untuk semua halaman</div>
 
       <div class="filter-row">
-        <label>Preset</label>
-        <select id="fPeriode">
-          <option value="current">Bulan berjalan</option>
-          <option value="last">Bulan lalu</option>
-          <option value="last7">7 hari terakhir</option>
-          <option value="last30">30 hari terakhir</option>
-          <option value="last90">90 hari terakhir</option>
-          <option value="custom">Rentang khusus</option>
-        </select>
-      </div>
-      <div class="filter-row">
-        <label>Rentang tanggal</label>
+        <label data-i18n="date_range">Rentang tanggal</label>
         <button class="range-trigger" id="fRangeTrigger" type="button"><span id="fRangeLabel">—</span></button>
         <input type="hidden" id="fFrom" />
         <input type="hidden" id="fTo" />
       </div>
 
       <div class="modal-actions">
-        <button class="btn" id="filterReset">Reset</button>
-        <button class="btn" data-close>Batal</button>
-        <button class="btn btn-primary" id="filterOk">OK</button>
+        <button class="btn" id="filterCancelReset" data-i18n="cancel">Batal</button>
+        <button class="btn btn-primary" id="filterOk" data-i18n="ok">OK</button>
       </div>
     </div>
   </div>
 
   <!-- DATE RANGE POPUP -->
   <div class="modal" id="rangeModal" hidden>
-    <div class="modal-backdrop" data-close></div>
+    <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-card" style="max-width:340px;">
       <div class="modal-header">
-        <div class="modal-title">Pilih rentang tanggal</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+        <div class="modal-title" data-i18n="pick_range">Pilih rentang tanggal</div>
       </div>
       <div class="modal-sub"><span id="rangeInfo">Klik tanggal pertama untuk "Dari"</span></div>
       <div id="rangeCalendar"></div>
       <div class="modal-actions">
-        <button class="btn" data-close>Batal</button>
-        <button class="btn btn-primary" id="rangeOk">OK</button>
+        <button class="btn" data-close-modal data-i18n="cancel">Batal</button>
+        <button class="btn btn-primary" id="rangeOk" data-i18n="ok">OK</button>
       </div>
     </div>
   </div>
 
-  <!-- METRIC DETAIL MODAL -->
+  <!-- METRIC DETAIL MODAL (no X) -->
   <div class="modal" id="detailModal" hidden>
-    <div class="modal-backdrop" data-close></div>
+    <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-card">
       <div class="modal-header">
         <div class="modal-title" id="detailTitle">Detail</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
       </div>
       <div id="detailBody"></div>
-      <div class="modal-actions"><button class="btn btn-primary" data-close>Tutup</button></div>
+      <div class="modal-actions"><button class="btn btn-primary" data-close-modal data-i18n="close">Tutup</button></div>
     </div>
   </div>
 
-  <!-- UPLOAD MODAL -->
-  <div class="modal" id="uploadModal" hidden>
-    <div class="modal-backdrop" data-close></div>
-    <div class="modal-card">
+  <!-- TREND COMPARE MODAL -->
+  <div class="modal" id="trendModal" hidden>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-card" style="max-width:520px;">
       <div class="modal-header">
-        <div class="modal-title">Upload data</div>
-        <button class="icon-btn" data-close aria-label="Tutup">&times;</button>
+        <div class="modal-title" id="trendModalTitle">Perbandingan</div>
       </div>
-      <div class="modal-sub">File Sales Summary By Branch Report (.xlsx) dari ESB</div>
-
-      <div class="dropzone" id="dropzone">
-        <div class="dropzone-title">Tarik file ke sini</div>
-        <div class="dropzone-or">atau</div>
-        <button class="btn" id="btnPickFile">Pilih file .xlsx</button>
-        <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
-        <div class="dropzone-hint">Toko tanpa sales otomatis di-skip</div>
-      </div>
-
-      <div id="filePreview" hidden></div>
-      <div id="uploadResult" hidden></div>
-      <div id="uploadError" hidden></div>
-      <div id="uploadActions" class="modal-actions" hidden></div>
+      <div class="chart-wrap" style="height:260px;"><canvas id="trendCompareChart"></canvas></div>
+      <div class="modal-actions"><button class="btn btn-primary" data-close-modal data-i18n="close">Tutup</button></div>
     </div>
   </div>
 
