@@ -92,6 +92,28 @@ const CONFIG = {
   COMPLAINT_CATEGORIES: ['Kualitas Produk', 'Kurang Produk', 'Salah Produk', 'Kualitas Pelayanan', 'Kualitas Peralatan', 'Produk Kosong', 'Tidak Terima Struk'],
   COMPLAINT_LIMITS: { nama: 80, kontak: 40, alamat: 200, isi: 2000 },
 
+  // Kolom yang dikenali saat UPLOAD file komplain (.xlsx).
+  // key  = nama field internal (dipakai juga oleh Apps Script)
+  // header = nama kolom di file / sheet (dicocokkan case-insensitive)
+  // Form input manual hanya mengisi 8 kolom (lihat COMPLAINT_SHEET_HEADERS),
+  // tapi file export biasanya membawa kolom lain — kolom itu tetap dibaca
+  // supaya data yang sudah ada tidak hilang saat diupload.
+  COMPLAINT_UPLOAD_COLUMNS: [
+    { key: 'caseId',      header: 'Case Id',           type: 'text' },
+    { key: 'name',        header: 'Nama',              type: 'text' },
+    { key: 'contact',     header: 'Kontak',            type: 'text' },
+    { key: 'address',     header: 'Alamat',            type: 'text' },
+    { key: 'store',       header: 'Nama Store',        type: 'text' },
+    { key: 'media',       header: 'Media Komplain',    type: 'text' },
+    { key: 'category',    header: 'Kategori',          type: 'text' },
+    { key: 'trxDate',     header: 'Tanggal Transaksi', type: 'datetime' },
+    { key: 'cmpDate',     header: 'Tanggal Komplain',  type: 'datetime' },
+    { key: 'body',        header: 'Isi Komplain',      type: 'text' },
+    { key: 'inputDate',   header: 'Tanggal Input',     type: 'datetime' },
+    { key: 'areaMgr',     header: 'Area Manager',      type: 'text' },
+    { key: 'regionalMgr', header: 'Regional Manager',  type: 'text' }
+  ],
+
   MONEY_FORMATS: {
     auto: { id: 'Otomatis', en: 'Auto' },
     full: { id: 'Penuh',    en: 'Full' }
@@ -244,6 +266,11 @@ const CONFIG = {
       upload_success: 'Upload berhasil', upload_fail_title: 'Upload gagal',
       upload_fail_process: 'Gagal memproses file',
       upload_no_new_row: 'Tidak ada baris baru.',
+      upload_kind: 'Jenis data', upload_kind_sales: 'Penjualan', upload_kind_complaint: 'Komplain',
+      upload_detected: 'Terdeteksi file {k}',
+      upload_supported: 'Mendukung file Penjualan (kolom Sales Date & Branch Name) dan file Komplain (kolom Nama Store & Media Komplain).',
+      upload_skipped_rows: '{n} baris dilewati karena datanya tidak lengkap/tidak valid.',
+      upload_complaints_suffix: 'komplain',
 
       toast_cache_cleared: 'Cache dibersihkan. Refresh halaman.',
       toast_cache_loading: 'Data cache · memuat versi terbaru...',
@@ -347,6 +374,11 @@ const CONFIG = {
       upload_success: 'Upload successful', upload_fail_title: 'Upload failed',
       upload_fail_process: 'Failed to process file',
       upload_no_new_row: 'No new rows.',
+      upload_kind: 'Data type', upload_kind_sales: 'Sales', upload_kind_complaint: 'Complaint',
+      upload_detected: 'Detected {k} file',
+      upload_supported: 'Supports Sales files (Sales Date & Branch Name columns) and Complaint files (Nama Store & Media Komplain columns).',
+      upload_skipped_rows: '{n} rows skipped because the data was incomplete/invalid.',
+      upload_complaints_suffix: 'complaints',
 
       toast_cache_cleared: 'Cache cleared. Refresh the page.',
       toast_cache_loading: 'Cached data · loading latest...',

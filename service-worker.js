@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sales-dashboard-v13';
+const CACHE_NAME = 'sales-dashboard-v14';
 const APP_SHELL = [
   './',
   './index.html',

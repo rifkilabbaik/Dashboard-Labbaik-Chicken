@@ -1233,13 +1233,29 @@ const App = {
         const m = document.getElementById('upMsg'); if (m) m.textContent = msg;
         const f = document.getElementById('upFill'); if (f) f.style.width = pct + '%';
       });
-      const pairs = parsed.rows.map(r => ({ date: r.date, branch: r.branch }));
-      const dup = await Sheets.checkDuplicate(pairs);
+      const isComplaint = parsed.kind === 'komplain';
+      const dup = isComplaint
+        ? await Sheets.checkDuplicateComplaints(parsed.rows.map(r => r.dedupKey))
+        : await Sheets.checkDuplicate(parsed.rows.map(r => ({ date: r.date, branch: r.branch })));
       this._uploadCtx = { parsed, dup };
       const meta = parsed.meta;
+      const kindLabel = this.t(isComplaint ? 'upload_kind_complaint' : 'upload_kind_sales');
+      const y1 = String(meta.dateStart || '').slice(0, 4);
+      const y2 = String(meta.dateEnd || '').slice(0, 4);
+      const showYear = y1 !== y2;
+      const d1 = this._formatShort(meta.dateStart) + (showYear ? ' ' + y1 : '');
+      const d2 = this._formatShort(meta.dateEnd) + (showYear ? ' ' + y2 : '');
+      const bits = [
+        d1 + (meta.dateStart !== meta.dateEnd ? ' – ' + d2 : ''),
+        meta.branches.length + ' ' + this.t('stores_suffix'),
+        meta.rowCount.toLocaleString(this._locale()) + (isComplaint ? ' ' + this.t('upload_complaints_suffix') : '')
+      ];
+      if (!isComplaint) bits.push(this._fmtRp(meta.totalSales));
       preview.innerHTML = `<div class="file-preview">
         <div class="file-preview-name">${this._esc(file.name)}</div>
-        <div class="file-preview-meta">${this._formatShort(meta.dateStart)}${meta.dateStart !== meta.dateEnd ? ' – ' + this._formatShort(meta.dateEnd) : ''} · ${meta.branches.length} ${this.t('stores_suffix')} · ${meta.rowCount.toLocaleString(this._locale())} · ${this._fmtRp(meta.totalSales)}</div>
+        <div class="file-preview-kind">${this._esc(this.t('upload_detected', { k: kindLabel }))}</div>
+        <div class="file-preview-meta">${bits.map(b => this._esc(b)).join(' · ')}</div>
+        ${meta.skipped ? `<div class="file-preview-warn">${this._esc(this.t('upload_skipped_rows', { n: meta.skipped }))}</div>` : ''}
       </div>`;
       res.hidden = false;
       if (dup.duplicates === 0) {
@@ -1249,6 +1265,7 @@ const App = {
         document.getElementById('btnUploadInner').onclick = () => this._doUpload(false);
       } else if (dup.newOnes === 0) {
         res.innerHTML = `<div class="error-box"><div class="error-box-icon">!</div><div><div class="error-box-title">${this._esc(this.t('upload_all_dup_title'))}</div><div class="error-box-msg">${this._esc(this.t('upload_all_dup_msg', { n: dup.duplicates.toLocaleString(this._locale()) }))}</div></div></div>`;
+        actions.innerHTML = '';   // buang tombol dari file sebelumnya
       } else {
         res.innerHTML = `<div class="warn-box"><b>${this._esc(this.t('upload_partial_title'))}</b><br>• ${this._esc(this.t('upload_partial_new', { n: dup.newOnes.toLocaleString(this._locale()) }))}<br>• ${this._esc(this.t('upload_partial_dup', { n: dup.duplicates.toLocaleString(this._locale()) }))}</div><div style="font-size:12px; color:var(--ink-2); margin-bottom:8px;">${this._esc(this.t('upload_which'))}</div>`;
         actions.hidden = false;
@@ -1271,26 +1288,32 @@ const App = {
     const setStatus = (msg, pct) => {
       preview.innerHTML = `<div class="file-preview"><div class="file-preview-name">${this._esc(this._uploadCtx.parsed.meta.fileName)}</div><div class="file-preview-meta">${this._esc(msg)}</div><div class="upload-progress"><div class="upload-progress-fill" style="width:${pct}%"></div></div></div>`;
     };
+    const isComplaint = this._uploadCtx.parsed.kind === 'komplain';
     try {
       let rows = this._uploadCtx.parsed.rows;
-      if (filterDupes) {
+      if (filterDupes && !isComplaint) {
         setStatus(this.t('upload_filtering'), 10);
         const full = await Sheets.fetchAll();
         const existing = new Set(full.map(r => r.date + '|' + r.branch));
         rows = rows.filter(r => !existing.has(r.date + '|' + r.branch));
       }
       if (rows.length === 0) { setStatus(this.t('upload_no_new_row'), 100); setTimeout(() => this._resetUploadUi(), 1200); return; }
-      const CHUNK = 500;
+      // Komplain: server yang menyaring duplikat (pakai Case Id / kombinasi kolom),
+      // jadi "upload semua" vs "upload yang baru" sama-sama aman.
+      const CHUNK = isComplaint ? 200 : 500;
+      let added = 0;
       for (let i = 0; i < rows.length; i += CHUNK) {
         const slice = rows.slice(i, i + CHUNK);
         setStatus(this.t('upload_progress', { a: Math.min(i + CHUNK, rows.length).toLocaleString(this._locale()), b: rows.length.toLocaleString(this._locale()) }), 10 + Math.round(i / rows.length * 85));
-        await Sheets.upload(slice);
+        const res = isComplaint ? await Sheets.uploadComplaints(slice) : await Sheets.upload(slice);
+        added += (res && res.added) || 0;
       }
-      setStatus(this.t('upload_done', { n: rows.length.toLocaleString(this._locale()) }), 100);
+      setStatus(this.t('upload_done', { n: (isComplaint ? added : rows.length).toLocaleString(this._locale()) }), 100);
       this._toast(this.t('upload_success'));
       Sheets.clearCache();
       setTimeout(() => this._resetUploadUi(), 1200);
-      await this.loadAll();
+      if (isComplaint) { this._cmpLoaded = false; await this.loadComplaints(false, true); }
+      else await this.loadAll();
     } catch (e) {
       const err = document.getElementById('uploadError');
       err.hidden = false;

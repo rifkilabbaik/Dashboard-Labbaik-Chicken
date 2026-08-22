@@ -12,7 +12,7 @@ Progressive Web App (PWA) untuk memantau penjualan multi-branch dengan Google Sh
   popup perbandingan (Harian/Mingguan vs bulan lalu, Bulanan vs **tahun lalu**)
 - Top & Low 10 toko
 - **Kegiatan** — catat kegiatan FLD / GCOM / CX, kalender kegiatan, filter & daftar
-- **Komplain** — input komplain pelanggan langsung ke sheet `Komplain`
+- **Komplain** — input manual + **upload file .xlsx** langsung ke sheet `Komplain`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text
 - Installable sebagai PWA
 - Filter otomatis menyaring toko aktif dari sheet Regional
@@ -38,7 +38,8 @@ sales-dashboard/
 ## Setup Ulang (untuk perubahan besar ini)
 
 > **Penting untuk versi ini:** Apps Script harus di-deploy ulang, karena ada
-> action baru (`fetchKegiatan`, `fetchKomplain`, `addKegiatan`, `addKomplain`).
+> action baru (`fetchKegiatan`, `fetchKomplain`, `addKegiatan`, `addKomplain`,
+> `checkDuplicateKomplain`, `uploadKomplain`).
 > Sheet `Kegiatan` dibuat otomatis saat kegiatan pertama disimpan.
 
 ### 1. Update Apps Script
@@ -73,6 +74,42 @@ Input data langsung di spreadsheet Google Sheets, tab `Sales`. Kolom yang wajib:
 `Sales Date | Branch Name | DINE IN | TAKE AWAY | GRABFOOD | GOFOOD | SHOPEE FOOD | BAZAR | CATERING | ESB Order Delivery | ESB Order Pickup | PAKAR | Total`
 
 Untuk bulk input, paste dari Excel atau pakai File → Import di Google Sheets.
+
+### Upload data (.xlsx)
+
+Menu **Upload data** menerima **dua** jenis file dan **mendeteksi jenisnya otomatis**
+dari baris header:
+
+| Jenis | Dikenali dari | Masuk ke sheet |
+|---|---|---|
+| Penjualan | kolom `Sales Date` + `Branch Name` | `Data` |
+| Komplain | kolom `Nama Store` + `Media Komplain` | `Komplain` |
+
+Jenis yang terdeteksi ditampilkan di kartu preview, jadi kelihatan sebelum diupload.
+
+**File komplain** — semua kolom yang ada di file **dan** ada di sheet akan diisi:
+
+```
+Case Id | Nama | Kontak | Alamat | Nama Store | Media Komplain | Kategori
+Tanggal Transaksi | Tanggal Komplain | Isi Komplain | Tanggal Input
+Area Manager | Regional Manager
+```
+
+> Form input manual tetap hanya mengisi 8 kolom sesuai permintaan. Untuk **upload
+> file**, kolom lain ikut dibaca supaya data export yang sudah ada (`Case Id`,
+> `Area Manager`, dll) tidak hilang. Kolom yang tidak ada di file dibiarkan kosong,
+> dan urutan kolom di sheet tidak harus sama dengan di file — pencocokan pakai
+> nama header.
+
+**Anti-duplikat.** Baris dianggap sama kalau `Case Id`-nya sama. Kalau `Case Id`
+kosong (mis. data dari form manual), yang dibandingkan adalah kombinasi
+`Nama + Nama Store + Tanggal Transaksi + Isi Komplain` (tidak peduli huruf besar/kecil
+dan spasi berlebih). Upload file yang sama dua kali **tidak** menambah baris.
+
+**Baris yang dilewati.** Baris tanpa Nama / Nama Store / Tanggal Transaksi / Isi
+Komplain, atau yang tanggalnya tidak valid, dilewati — jumlahnya dilaporkan di
+kartu preview. Kalau tahun awal & akhir berbeda, rentang tanggal ditampilkan
+lengkap dengan tahunnya supaya salah ketik tahun di file sumber langsung kelihatan.
 
 ### Kegiatan
 
@@ -174,3 +211,12 @@ memakai daftar toko dari data penjualan sebagai cadangan.
 **Kegiatan/Komplain gagal disimpan**
 Apps Script belum di-deploy ulang setelah `Code.gs` diperbarui. Deploy → Manage
 deployments → Version: New version → Deploy.
+
+**Muncul "Gagal: view is not defined"**
+Versi lama `js/app.js`. Update file di GitHub, lalu hard refresh (Ctrl+Shift+R)
+supaya service worker versi baru terambil.
+
+**Upload komplain: "Format file tidak dikenali"**
+Baris header file harus punya kolom `Nama Store` dan `Media Komplain` (dicari di
+25 baris pertama). Kalau file punya baris judul/logo di atas header, itu tidak
+masalah — header dicari otomatis.
