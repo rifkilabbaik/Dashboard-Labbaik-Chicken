@@ -902,10 +902,16 @@ a:hover { text-decoration: underline; }
 .metric-hero:active { transform: scale(0.995); }
 .metric-hero-label { font-size: 13px; color: var(--ink-2); }
 .metric-hero-value {
-  font-size: 28px;
+  /* "Rp" dan angkanya WAJIB satu baris — ukuran font mengecil sendiri
+     kalau layarnya sempit, bukan pindah baris. */
+  font-size: clamp(20px, 6.4vw, 28px);
   font-weight: 500;
   margin-top: 6px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 .metric-hero-growth {
   font-size: 13px;
@@ -956,6 +962,8 @@ a:hover { text-decoration: underline; }
   font-size: 20px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .mg-children {
   display: flex;
@@ -1199,7 +1207,6 @@ a:hover { text-decoration: underline; }
 
 /* Mobile refinements */
 @media (max-width: 640px) {
-  .metric-hero-value { font-size: 24px; }
   .mg-value { font-size: 17px; }
   .metric-groups { grid-template-columns: 1fr; }
   .stbl th, .stbl td { padding: 7px 6px; font-size: 11px; }
@@ -1284,3 +1291,195 @@ a:hover { text-decoration: underline; }
 
 /* Dropdown fill width variant (for toko sub-filter) */
 .dropdown-select .dd-btn { display: flex; align-items: center; justify-content: space-between; }
+
+/* ============================================================================
+   v8 additions — Kegiatan (activity) & Komplain (complaint)
+   ============================================================================ */
+
+/* Tombol aksi di atas halaman */
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 560px) {
+  .action-grid { grid-auto-flow: column; grid-auto-columns: 1fr; grid-template-columns: none; }
+}
+.action-grid .btn { padding: 11px 14px; font-size: 13px; }
+
+.panel-count { font-size: 11px; color: var(--ink-3); font-weight: 500; }
+
+/* ---- Form ---- */
+.form-grid { display: flex; flex-direction: column; gap: 12px; }
+.form-grid-2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 560px) {
+  .form-grid-2 { grid-template-columns: 1fr 1fr; }
+}
+#actFormDynamic { display: flex; flex-direction: column; gap: 12px; }
+.form-row label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.form-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--bone-2);
+  color: var(--ink);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 120ms;
+}
+.form-input:focus { border-color: var(--sea); }
+textarea.form-input { resize: vertical; line-height: 1.5; }
+.char-hint { font-size: 10px; color: var(--ink-3); margin-top: 4px; text-align: right; }
+.form-error {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  font-size: 12px;
+}
+.form-error[hidden] { display: none; }
+
+/* ---- Searchable dropdown ---- */
+/* [hidden] harus tetap menang: pakai :not([hidden]) supaya menu tidak
+   selalu tampil (display:flex akan menimpa display:none dari [hidden]). */
+.dd-menu[hidden] { display: none; }
+.dd-menu-search:not([hidden]) { display: flex; flex-direction: column; }
+.dd-menu-search { max-height: 300px; overflow: hidden; }
+.dd-search {
+  padding: 8px;
+  border-bottom: 0.5px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bone-2);
+}
+.dd-search-input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: var(--bone);
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+.dd-search-input:focus { border-color: var(--sea); }
+.dd-menu-search .dd-opts { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.dd-empty { padding: 12px; text-align: center; font-size: 12px; color: var(--ink-3); }
+.dd-opt[hidden] { display: none; }
+.dd-btn-empty { color: var(--ink-3); }
+
+/* ---- Daftar kegiatan / komplain ---- */
+.act-row {
+  padding: 10px 2px;
+  border-bottom: 0.5px solid var(--line);
+}
+.act-row:last-child { border-bottom: none; }
+.act-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.act-date { font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+.act-name { font-weight: 500; }
+.act-store { color: var(--ink-2); }
+.act-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.act-tag-soft { background: var(--sea-2); color: var(--sea); }
+.act-row-detail { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+.cmp-row { cursor: pointer; }
+.cmp-row:hover { background: var(--bone); }
+
+/* Detail komplain: label di atas, isi di bawah (teks panjang) */
+.detail-row-stack {
+  display: block;
+}
+.detail-text {
+  font-size: 13px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+/* ---- Kalender kegiatan ---- */
+.acal { margin-top: 4px; }
+.acal-head {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.acal-head > div {
+  text-align: center;
+  font-size: 10px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+.acal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.acal-cell {
+  min-height: 46px;
+  border-radius: 6px;
+  background: var(--bone);
+  border: 0.5px solid var(--line);
+  padding: 3px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+}
+.acal-cell.empty { background: transparent; border-color: transparent; }
+.acal-cell.has { cursor: pointer; background: var(--bone-2); border-color: var(--line-2); }
+.acal-cell.has:hover { border-color: var(--sea); }
+.acal-day { font-size: 11px; color: var(--ink-2); line-height: 1.1; }
+.acal-cell.has .acal-day { color: var(--ink); font-weight: 500; }
+.acal-tags { display: flex; flex-direction: column; gap: 2px; width: 100%; align-items: center; }
+.acal-tag {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  line-height: 1.3;
+  padding: 1px 4px;
+  border-radius: 3px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.acal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--line);
+}
+.acal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.acal-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
