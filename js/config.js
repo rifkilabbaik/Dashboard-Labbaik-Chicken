@@ -155,7 +155,7 @@ const CONFIG = {
 
       loading: 'Memuat data',
 
-      total_sales: 'Total penjualan', click_for_detail: 'Klik untuk detail', vs_prev_month: 'vs bulan lalu', prev_month: 'bulan lalu',
+      total_sales: 'Total penjualan', click_for_detail: 'Klik untuk detail', prev_month: 'bulan lalu',
 
       sales_regional: 'Penjualan Regional', sales_area: 'Penjualan Area', sales_store: 'Penjualan Toko',
 
@@ -163,8 +163,9 @@ const CONFIG = {
 
       trend_daily: 'Harian', trend_weekly: 'Mingguan', trend_monthly: 'Bulanan',
       trend_title: 'Tren', trend_current: 'Periode ini', trend_prev: 'Bulan lalu',
-      trend_compare_hint: 'Ketuk grafik untuk perbandingan bulan lalu',
-      trend_compare_title: 'Perbandingan vs bulan lalu',
+      trend_prev_year: 'Tahun lalu',
+      trend_compare_hint: 'Ketuk grafik untuk perbandingan',
+      trend_compare_title: 'Perbandingan',
       trend_week_prefix: 'M', trend_month_prefix: '',
 
       top10: '10 Toko penjualan tertinggi', low10: '10 Toko penjualan terendah',

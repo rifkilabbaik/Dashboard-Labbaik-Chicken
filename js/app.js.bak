@@ -213,7 +213,7 @@ const App = {
     };
   },
 
-  // Default = 1st of month to latest date with data
+  // Default = bulan berjalan
   _setDefaultRange() {
     let now;
     const latest = this._latestDate();
@@ -222,7 +222,7 @@ const App = {
       now = new Date(ly, lm - 1, ld);
     } else now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = latest ? new Date(latest + 'T00:00:00') : now;
+    const to = now;
     this.filter.from = this._toDateStr(from);
     this.filter.to = this._toDateStr(to);
   },
@@ -444,7 +444,7 @@ const App = {
     const gEl = document.getElementById('mvTotalGrowth');
     if (gr === null) { gEl.textContent = '—'; gEl.style.color = 'var(--ink-2)'; }
     else {
-      gEl.textContent = (gr >= 0 ? '+' : '') + gr.toFixed(1) + '%';
+      gEl.textContent = (gr >= 0 ? '+' : '') + gr.toFixed(1) + '% ' + this.t('vs_prev_month');
       gEl.style.color = gr >= 0 ? 'var(--success)' : 'var(--danger)';
     }
     document.querySelector('#mcTotal .metric-hero-hint').textContent = this.t('click_for_detail');
@@ -624,11 +624,9 @@ const App = {
     const inkColor = cs.getPropertyValue('--ink-3').trim() || '#8A93A0';
     const gridColor = cs.getPropertyValue('--line').trim() || '#E8E2D3';
     const maxV = Math.max.apply(null, values.length ? values : [0]);
-    // Daily = line chart; weekly & monthly = bar chart
-    const type = view === 'daily' ? 'line' : 'bar';
     this.charts.trend = new Chart(ctx, {
-      type,
-      data: { labels, datasets: [{ data: values, borderColor: seaColor, backgroundColor: view === 'daily' ? this._hexToRgba(seaColor, 0.1) : seaColor, borderWidth: view === 'daily' ? 2 : 0, fill: view === 'daily', tension: view === 'daily' ? 0.3 : 0, pointRadius: view === 'daily' ? 3 : 0, pointHoverRadius: view === 'daily' ? 5 : 0, pointBackgroundColor: seaColor }] },
+      type: 'line',
+      data: { labels, datasets: [{ data: values, borderColor: seaColor, backgroundColor: this._hexToRgba(seaColor, 0.1), borderWidth: 2, fill: true, tension: 0.3, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: seaColor }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
@@ -669,14 +667,13 @@ const App = {
     const inkColor = cs.getPropertyValue('--ink-3').trim() || '#8A93A0';
     const gridColor = cs.getPropertyValue('--line').trim() || '#E8E2D3';
     const maxV = Math.max.apply(null, [...cur, ...prev, 0]);
-    const prevLabel = view === 'daily' ? this.t('trend_prev') : this.t('trend_prev_year');
     this.charts.compare = new Chart(ctx, {
       type: 'line',
       data: {
         labels,
         datasets: [
           { label: this.t('trend_current'), data: cur, borderColor: seaColor, backgroundColor: this._hexToRgba(seaColor, 0.1), borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, fill: false },
-          { label: prevLabel, data: prev, borderColor: accent2, backgroundColor: this._hexToRgba(accent2, 0.08), borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, borderDash: [4, 4], fill: false }
+          { label: this.t('trend_prev'),    data: prev, borderColor: accent2, backgroundColor: this._hexToRgba(accent2, 0.08), borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, borderDash: [4, 4], fill: false }
         ]
       },
       options: {
@@ -927,9 +924,9 @@ const App = {
       groups.forEach(g => {
         const chans = [...g.always, ...g.conditional].flatMap(c => c.channels);
         const v = chans.reduce((s, c) => s + (r.channels[c] || 0), 0);
-        html += `<td class="ta-r rp-num">${this._fmtRp(v)}</td>`;
+        html += `<td class="ta-r"><span class="rp-num">${this._fmtRp(v)}</span></td>`;
       });
-      html += `<td class="ta-r rp-num"><b>${this._fmtRp(r.total)}</b></td>`;
+      html += `<td class="ta-r"><b><span class="rp-num">${this._fmtRp(r.total)}</span></b></td>`;
       html += `<td class="ta-r" style="color:${grCol}">${grTxt}</td></tr>`;
     });
     html += '</tbody></table></div>';
