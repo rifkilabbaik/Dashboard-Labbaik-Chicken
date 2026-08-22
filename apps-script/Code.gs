@@ -16,6 +16,24 @@ const HEADERS = {
   // (Case Id, Tanggal Komplain, Area Manager, dst) — kolom itu dibiarkan kosong.
   KOMPLAIN: ['Nama', 'Kontak', 'Alamat', 'Nama Store', 'Media Komplain', 'Kategori', 'Tanggal Transaksi', 'Isi Komplain']
 };
+// key field -> nama header. Dipakai form input (subset) & upload file (semua).
+const KOMPLAIN_FIELDS = [
+  ['caseId',      'Case Id'],
+  ['name',        'Nama'],
+  ['contact',     'Kontak'],
+  ['address',     'Alamat'],
+  ['store',       'Nama Store'],
+  ['media',       'Media Komplain'],
+  ['category',    'Kategori'],
+  ['trxDate',     'Tanggal Transaksi'],
+  ['cmpDate',     'Tanggal Komplain'],
+  ['body',        'Isi Komplain'],
+  ['inputDate',   'Tanggal Input'],
+  ['areaMgr',     'Area Manager'],
+  ['regionalMgr', 'Regional Manager']
+];
+// Kolom tanggal komplain -> disimpan sebagai TEXT (hindari geser timezone)
+const KOMPLAIN_DATE_KEYS = ['trxDate', 'cmpDate', 'inputDate'];
 const CELL_LIMIT = 10000000;
 
 function doGet(e) {
@@ -38,6 +56,8 @@ function doPost(e) {
     if (b.action === 'upload')         return { status: 'ok', data: _upload(b.rows || []) };
     if (b.action === 'addKegiatan')    return { status: 'ok', data: _addKegiatan(b.row || {}) };
     if (b.action === 'addKomplain')    return { status: 'ok', data: _addKomplain(b.row || {}) };
+    if (b.action === 'checkDuplicateKomplain') return { status: 'ok', data: _checkDuplicateKomplain(b.keys || []) };
+    if (b.action === 'uploadKomplain') return { status: 'ok', data: _uploadKomplain(b.rows || []) };
     throw new Error('Unknown action: ' + b.action);
   });
 }
@@ -277,6 +297,96 @@ function _addKomplain(row) {
     'tanggal transaksi': date,
     'isi komplain':      String(row.body).trim()
   }, ['tanggal transaksi']);
+}
+
+// ============================================================================
+// KOMPLAIN — upload file (batch)
+// ============================================================================
+// Kunci duplikat. HARUS sama dengan UploadParser.complaintKey() di upload.js.
+function _komplainKey(row) {
+  const norm = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (norm(row.caseId)) return 'id:' + norm(row.caseId);
+  return 'x:' + [norm(row.name), norm(row.store), String(row.trxDate || '').slice(0, 10), norm(row.body)].join('|');
+}
+
+// Baca sheet Komplain sekali, hasilkan set kunci yang sudah ada
+function _komplainExistingKeys() {
+  const sheet = _getSheetSoft(SHEETS.KOMPLAIN, HEADERS.KOMPLAIN);
+  const set = {};
+  if (sheet.getLastRow() < 2) return set;
+  const values = sheet.getDataRange().getValues();
+  const idx = _headerIndex(values[0]);
+  const pick = {};
+  KOMPLAIN_FIELDS.forEach(f => { pick[f[0]] = idx[f[1].toLowerCase()]; });
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const row = {};
+    KOMPLAIN_FIELDS.forEach(f => {
+      const ci = pick[f[0]];
+      row[f[0]] = ci === undefined ? '' : r[ci];
+    });
+    if (!String(row.name || '').trim() && !String(row.store || '').trim()) continue;
+    // Tanggal di sheet bisa berupa Date object -> samakan jadi yyyy-MM-dd dulu
+    row.trxDate = _normalizeDate(row.trxDate) || String(row.trxDate || '');
+    set[_komplainKey(row)] = true;
+  }
+  return set;
+}
+
+function _checkDuplicateKomplain(keys) {
+  const existing = _komplainExistingKeys();
+  let duplicates = 0;
+  keys.forEach(k => { if (existing[k]) duplicates++; });
+  return { totalInFile: keys.length, duplicates: duplicates, newOnes: keys.length - duplicates };
+}
+
+function _uploadKomplain(rows) {
+  if (!rows || rows.length === 0) return { added: 0, skipped: 0 };
+  const sheet = _getSheetSoft(SHEETS.KOMPLAIN, HEADERS.KOMPLAIN);
+  const lastCol = Math.max(sheet.getLastColumn(), HEADERS.KOMPLAIN.length);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idx = _headerIndex(headerRow);
+
+  // Tambah header yang belum ada di kanan (mis. sheet baru tanpa Case Id)
+  let width = lastCol;
+  KOMPLAIN_FIELDS.forEach(f => {
+    const key = f[1].toLowerCase();
+    // Hanya tambahkan kalau ada datanya di batch ini
+    const used = rows.some(r => String(r[f[0]] == null ? '' : r[f[0]]).trim() !== '');
+    if (idx[key] === undefined && used) {
+      width++;
+      sheet.getRange(1, width, 1, 1).setValue(f[1]);
+      idx[key] = width - 1;
+    }
+  });
+
+  const existing = _komplainExistingKeys();
+  const matrix = [];
+  let skipped = 0;
+  rows.forEach(r => {
+    if (!String(r.name || '').trim() || !String(r.store || '').trim()) { skipped++; return; }
+    if (existing[_komplainKey(r)]) { skipped++; return; }
+    existing[_komplainKey(r)] = true;   // cegah duplikat di dalam batch yang sama
+    const line = new Array(width).fill('');
+    KOMPLAIN_FIELDS.forEach(f => {
+      const ci = idx[f[1].toLowerCase()];
+      if (ci === undefined) return;
+      const v = r[f[0]];
+      line[ci] = v == null ? '' : String(v);
+    });
+    matrix.push(line);
+  });
+  if (matrix.length === 0) return { added: 0, skipped: skipped };
+
+  const targetRow = sheet.getLastRow() + 1;
+  // Paksa kolom tanggal jadi TEXT untuk seluruh blok baris baru
+  KOMPLAIN_DATE_KEYS.forEach(k => {
+    const header = (KOMPLAIN_FIELDS.filter(f => f[0] === k)[0] || [])[1];
+    const ci = header ? idx[header.toLowerCase()] : undefined;
+    if (ci !== undefined) sheet.getRange(targetRow, ci + 1, matrix.length, 1).setNumberFormat('@');
+  });
+  sheet.getRange(targetRow, 1, matrix.length, width).setValues(matrix);
+  return { added: matrix.length, skipped: skipped };
 }
 
 // ============================================================================

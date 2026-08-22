@@ -43,6 +43,8 @@ const Sheets = {
   // ===== Komplain =====
   async fetchComplaints()  { return (await this._get('fetchKomplain')).data; },
   async addComplaint(row)  { return (await this._post({ action: 'addKomplain', row })).data; },
+  async checkDuplicateComplaints(keys) { return (await this._post({ action: 'checkDuplicateKomplain', keys })).data; },
+  async uploadComplaints(rows)         { return (await this._post({ action: 'uploadKomplain', rows })).data; },
 
   // ===== Cache helpers =====
   saveCache(data, regional, status) {
