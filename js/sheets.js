@@ -2,6 +2,8 @@ const Sheets = {
   CACHE_KEY_DATA: 'cache_data_v1',
   CACHE_KEY_REGIONAL: 'cache_regional_v1',
   CACHE_KEY_STATUS: 'cache_status_v1',
+  CACHE_KEY_ACTIVITY: 'cache_activity_v1',
+  CACHE_KEY_COMPLAINT: 'cache_complaint_v1',
 
   async _get(action, params) {
     if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.startsWith('PASTE')) throw new Error('APPS_SCRIPT_URL belum dikonfigurasi.');
@@ -34,6 +36,14 @@ const Sheets = {
   async checkDuplicate(pairs) { return (await this._post({ action: 'checkDuplicate', pairs })).data; },
   async upload(rows)          { return (await this._post({ action: 'upload', rows })).data; },
 
+  // ===== Kegiatan =====
+  async fetchActivities()  { return (await this._get('fetchKegiatan')).data; },
+  async addActivity(row)   { return (await this._post({ action: 'addKegiatan', row })).data; },
+
+  // ===== Komplain =====
+  async fetchComplaints()  { return (await this._get('fetchKomplain')).data; },
+  async addComplaint(row)  { return (await this._post({ action: 'addKomplain', row })).data; },
+
   // ===== Cache helpers =====
   saveCache(data, regional, status) {
     try {
@@ -60,5 +70,21 @@ const Sheets = {
     localStorage.removeItem(this.CACHE_KEY_DATA);
     localStorage.removeItem(this.CACHE_KEY_REGIONAL);
     localStorage.removeItem(this.CACHE_KEY_STATUS);
+    localStorage.removeItem(this.CACHE_KEY_ACTIVITY);
+    localStorage.removeItem(this.CACHE_KEY_COMPLAINT);
+  },
+
+  // ===== Generic list cache (kegiatan / komplain) =====
+  saveList(key, rows) {
+    try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: rows })); }
+    catch (e) { console.warn('Cache save failed:', e); }
+  },
+  loadList(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const j = JSON.parse(raw);
+      return Array.isArray(j.data) ? j.data : null;
+    } catch { return null; }
   }
 };

@@ -1,15 +1,20 @@
 // ============================================================================
-// SALES DASHBOARD v5 — Apps Script (format lama, ringan & tahan lama)
+// SALES DASHBOARD v8 — Apps Script (Sales + Regional + Kegiatan + Komplain)
 // ============================================================================
 // Sheet 'Data': 1 baris per (Sales Date, Branch), kolom = channel
 // Sheet 'Regional': mapping toko aktif
 // ============================================================================
 
-const SHEETS = { DATA: 'Data', REGIONAL: 'Regional' };
+const SHEETS = { DATA: 'Data', REGIONAL: 'Regional', KEGIATAN: 'Kegiatan', KOMPLAIN: 'Komplain' };
 const CHANNELS = ['DINE IN','TAKE AWAY','GRABFOOD','GOFOOD','SHOPEE FOOD','BAZAR','CATERING','ESB Order Delivery','ESB Order Pickup','PAKAR'];
 const HEADERS = {
   DATA:     ['Sales Date', 'Branch Name', ...CHANNELS, 'Total'],
-  REGIONAL: ['Regional', 'Area', 'Nama Toko']
+  REGIONAL: ['Regional', 'Area', 'Nama Toko'],
+  // Kegiatan: Tanggal | Nama | Nama Toko | Kegiatan | Keterangan 1 | Keterangan 2
+  KEGIATAN: ['Tanggal', 'Nama', 'Nama Toko', 'Kegiatan', 'Keterangan 1', 'Keterangan 2'],
+  // Komplain: hanya kolom yang diinput dari aplikasi. Sheet boleh punya kolom lain
+  // (Case Id, Tanggal Komplain, Area Manager, dst) — kolom itu dibiarkan kosong.
+  KOMPLAIN: ['Nama', 'Kontak', 'Alamat', 'Nama Store', 'Media Komplain', 'Kategori', 'Tanggal Transaksi', 'Isi Komplain']
 };
 const CELL_LIMIT = 10000000;
 
@@ -19,6 +24,8 @@ function doGet(e) {
     if (a === 'fetchAll')      return { status: 'ok', data: _fetchAll() };
     if (a === 'fetchRegional') return { status: 'ok', data: _fetchRegional() };
     if (a === 'status')        return { status: 'ok', data: _status() };
+    if (a === 'fetchKegiatan') return { status: 'ok', data: _fetchKegiatan() };
+    if (a === 'fetchKomplain') return { status: 'ok', data: _fetchKomplain() };
     if (a === 'debug')         return { status: 'ok', debug: _debug() };
     throw new Error('Unknown action: ' + a);
   });
@@ -29,6 +36,8 @@ function doPost(e) {
     const b = JSON.parse(e.postData.contents);
     if (b.action === 'checkDuplicate') return { status: 'ok', data: _checkDuplicate(b.pairs || []) };
     if (b.action === 'upload')         return { status: 'ok', data: _upload(b.rows || []) };
+    if (b.action === 'addKegiatan')    return { status: 'ok', data: _addKegiatan(b.row || {}) };
+    if (b.action === 'addKomplain')    return { status: 'ok', data: _addKomplain(b.row || {}) };
     throw new Error('Unknown action: ' + b.action);
   });
 }
@@ -178,6 +187,99 @@ function _upload(rows) {
 }
 
 // ============================================================================
+// KEGIATAN — sheet "Kegiatan"
+// Tanggal | Nama | Nama Toko | Kegiatan | Keterangan 1 | Keterangan 2
+// ============================================================================
+function _fetchKegiatan() {
+  const sheet = _getSheetSoft(SHEETS.KEGIATAN, HEADERS.KEGIATAN);
+  if (sheet.getLastRow() < 2) return [];
+  const values = sheet.getDataRange().getValues();
+  const idx = _headerIndex(values[0]);
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const date = _normalizeDate(_at(r, idx, 'tanggal'));
+    const type = String(_at(r, idx, 'kegiatan') || '').trim();
+    const name = String(_at(r, idx, 'nama') || '').trim();
+    if (!date && !type && !name) continue;
+    out.push({
+      date: date || '',
+      name: name,
+      store: String(_at(r, idx, 'nama toko') || '').trim(),
+      type: type,
+      k1: String(_at(r, idx, 'keterangan 1') == null ? '' : _at(r, idx, 'keterangan 1')).trim(),
+      k2: String(_at(r, idx, 'keterangan 2') == null ? '' : _at(r, idx, 'keterangan 2')).trim()
+    });
+  }
+  return out;
+}
+
+function _addKegiatan(row) {
+  const date = _normalizeDate(row.date);
+  if (!date) throw new Error('Tanggal kegiatan tidak valid');
+  if (!row.name)  throw new Error('Nama wajib diisi');
+  if (!row.store) throw new Error('Nama Toko wajib diisi');
+  if (!row.type)  throw new Error('Kegiatan wajib diisi');
+  return _appendByHeader(SHEETS.KEGIATAN, HEADERS.KEGIATAN, {
+    'tanggal':       date,
+    'nama':          String(row.name).trim(),
+    'nama toko':     String(row.store).trim(),
+    'kegiatan':      String(row.type).trim(),
+    'keterangan 1':  String(row.k1 == null ? '' : row.k1).trim(),
+    'keterangan 2':  String(row.k2 == null ? '' : row.k2).trim()
+  }, ['tanggal']);
+}
+
+// ============================================================================
+// KOMPLAIN — sheet "Komplain"
+// Hanya 8 kolom yang diinput dari aplikasi; kolom lain dibiarkan kosong.
+// ============================================================================
+function _fetchKomplain() {
+  const sheet = _getSheetSoft(SHEETS.KOMPLAIN, HEADERS.KOMPLAIN);
+  if (sheet.getLastRow() < 2) return [];
+  const values = sheet.getDataRange().getValues();
+  const idx = _headerIndex(values[0]);
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const name = String(_at(r, idx, 'nama') || '').trim();
+    const store = String(_at(r, idx, 'nama store') || '').trim();
+    if (!name && !store) continue;
+    out.push({
+      name: name,
+      contact: String(_at(r, idx, 'kontak') || '').trim(),
+      address: String(_at(r, idx, 'alamat') || '').trim(),
+      store: store,
+      media: String(_at(r, idx, 'media komplain') || '').trim(),
+      category: String(_at(r, idx, 'kategori') || '').trim(),
+      trxDate: _normalizeDate(_at(r, idx, 'tanggal transaksi')) || '',
+      body: String(_at(r, idx, 'isi komplain') || '').trim()
+    });
+  }
+  return out;
+}
+
+function _addKomplain(row) {
+  const date = _normalizeDate(row.trxDate);
+  if (!row.name)     throw new Error('Nama wajib diisi');
+  if (!row.store)    throw new Error('Nama Store wajib diisi');
+  if (!row.media)    throw new Error('Media Komplain wajib diisi');
+  if (!row.category) throw new Error('Kategori wajib diisi');
+  if (!date)         throw new Error('Tanggal Transaksi tidak valid');
+  if (!row.body)     throw new Error('Isi Komplain wajib diisi');
+  return _appendByHeader(SHEETS.KOMPLAIN, HEADERS.KOMPLAIN, {
+    'nama':              String(row.name).trim(),
+    'kontak':            String(row.contact == null ? '' : row.contact).trim(),
+    'alamat':            String(row.address == null ? '' : row.address).trim(),
+    'nama store':        String(row.store).trim(),
+    'media komplain':    String(row.media).trim(),
+    'kategori':          String(row.category).trim(),
+    'tanggal transaksi': date,
+    'isi komplain':      String(row.body).trim()
+  }, ['tanggal transaksi']);
+}
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 function _getSheet(name, headers) {
@@ -223,3 +325,68 @@ function _normalizeDate(v) {
 }
 function _pad(s) { return String(s).padStart(2, '0'); }
 function _json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+// ---- Sheet helper yang TIDAK memangkas kolom.
+// Dipakai untuk Kegiatan/Komplain: sheet-nya boleh punya kolom tambahan
+// (mis. Case Id, Tanggal Komplain, Area Manager) yang tidak boleh dihapus.
+function _getSheetSoft(name, headers) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let s = ss.getSheetByName(name);
+  if (!s) {
+    s = ss.insertSheet(name);
+    s.getRange(1, 1, 1, headers.length).setValues([headers]);
+    s.setFrozenRows(1);
+    return s;
+  }
+  if (s.getLastRow() === 0 || !String(s.getRange(1, 1).getValue()).trim()) {
+    s.getRange(1, 1, 1, headers.length).setValues([headers]);
+    s.setFrozenRows(1);
+  }
+  return s;
+}
+
+// Peta nama header (lowercase, trimmed) -> index kolom (0-based)
+function _headerIndex(headerRow) {
+  const map = {};
+  (headerRow || []).forEach((h, i) => {
+    const k = String(h == null ? '' : h).trim().toLowerCase();
+    if (k && map[k] === undefined) map[k] = i;
+  });
+  return map;
+}
+function _at(row, idx, key) {
+  const i = idx[key];
+  return i === undefined ? '' : row[i];
+}
+
+// Append 1 baris dengan mencocokkan header sheet (bukan urutan tetap),
+// supaya kolom ekstra di sheet tetap utuh & tidak bergeser.
+// textCols = daftar header yang harus disimpan sebagai TEXT (tanggal).
+function _appendByHeader(sheetName, defaultHeaders, valuesByHeader, textCols) {
+  const sheet = _getSheetSoft(sheetName, defaultHeaders);
+  const lastCol = Math.max(sheet.getLastColumn(), defaultHeaders.length);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idx = _headerIndex(headerRow);
+
+  // Header yang belum ada di sheet -> tambahkan di kolom paling kanan
+  let width = lastCol;
+  Object.keys(valuesByHeader).forEach(key => {
+    if (idx[key] === undefined) {
+      width++;
+      const proper = defaultHeaders.filter(h => h.toLowerCase() === key)[0] || key;
+      sheet.getRange(1, width, 1, 1).setValue(proper);
+      idx[key] = width - 1;
+    }
+  });
+
+  const line = new Array(width).fill('');
+  Object.keys(valuesByHeader).forEach(key => { line[idx[key]] = valuesByHeader[key]; });
+
+  const targetRow = sheet.getLastRow() + 1;
+  // Paksa kolom tanggal jadi TEXT supaya tidak ada konversi timezone
+  (textCols || []).forEach(key => {
+    if (idx[key] !== undefined) sheet.getRange(targetRow, idx[key] + 1, 1, 1).setNumberFormat('@');
+  });
+  sheet.getRange(targetRow, 1, 1, width).setValues([line]);
+  return { added: 1, row: targetRow };
+}

@@ -1,5 +1,5 @@
 // ============================================================================
-// Sales Dashboard v7 — palettes, i18n (id/en), updated groupings
+// Sales Dashboard v8 — palettes, i18n (id/en), Kegiatan & Komplain
 // ============================================================================
 
 const CONFIG = {
@@ -57,6 +57,40 @@ const CONFIG = {
     { key: 'PAKAR',              label: { id: 'Pakar',     en: 'Pakar' } },
     { key: 'BAZAR',              label: { id: 'Bazar',     en: 'Bazaar' } }
   ],
+
+  // ---- KEGIATAN (activity log) -> sheet "Kegiatan"
+  // Sheet columns: Tanggal | Nama | Nama Toko | Kegiatan | Keterangan 1 | Keterangan 2
+  ACTIVITY_SHEET_HEADERS: ['Tanggal', 'Nama', 'Nama Toko', 'Kegiatan', 'Keterangan 1', 'Keterangan 2'],
+  ACTIVITY_TYPES: [
+    {
+      key: 'FLD', label: { id: 'FLD', en: 'FLD' }, color: '#3B82C4',
+      fields: [
+        { slot: 'k1', type: 'text',   max: 80, label: { id: 'Nama TK',         en: 'Kindergarten name' } },
+        { slot: 'k2', type: 'number', max: 6,  label: { id: 'Jumlah Peserta',  en: 'Participants' } }
+      ]
+    },
+    {
+      key: 'GCOM', label: { id: 'GCOM', en: 'GCOM' }, color: '#C9853A',
+      fields: [
+        { slot: 'k1', type: 'text',   max: 80, label: { id: 'Nama Komunitas',  en: 'Community name' } },
+        { slot: 'k2', type: 'number', max: 6,  label: { id: 'Jumlah Peserta',  en: 'Participants' } }
+      ]
+    },
+    {
+      key: 'CX', label: { id: 'CX', en: 'CX' }, color: '#4F9E76',
+      fields: [
+        // 140 karakter: cukup untuk 1-2 kalimat tujuan kunjungan, tetap ringkas di spreadsheet
+        { slot: 'k1', type: 'textarea', max: 140, label: { id: 'Tujuan Kunjungan', en: 'Visit purpose' } }
+      ]
+    }
+  ],
+
+  // ---- KOMPLAIN -> sheet "Komplain"
+  // Hanya kolom ini yang diinput dari aplikasi.
+  COMPLAINT_SHEET_HEADERS: ['Nama', 'Kontak', 'Alamat', 'Nama Store', 'Media Komplain', 'Kategori', 'Tanggal Transaksi', 'Isi Komplain'],
+  COMPLAINT_MEDIA: ['WhatsApp', 'Instagram', 'Google Review', 'Aplikasi GoFood', 'Aplikasi GrabFood', 'Aplikasi ShopeeFood'],
+  COMPLAINT_CATEGORIES: ['Kualitas Produk', 'Kurang Produk', 'Salah Produk', 'Kualitas Pelayanan', 'Kualitas Peralatan', 'Produk Kosong', 'Tidak Terima Struk'],
+  COMPLAINT_LIMITS: { nama: 80, kontak: 40, alamat: 200, isi: 2000 },
 
   MONEY_FORMATS: {
     auto: { id: 'Otomatis', en: 'Auto' },
@@ -150,8 +184,11 @@ const CONFIG = {
 
   I18N: {
     id: {
-      nav_dashboard: 'Dasbor', nav_sales: 'Penjualan', nav_upload: 'Upload data', nav_settings: 'Pengaturan',
-      close: 'Tutup', cancel: 'Batal', reset: 'Reset', ok: 'OK',
+      nav_dashboard: 'Dasbor', nav_sales: 'Penjualan', nav_activity: 'Kegiatan', nav_complaint: 'Komplain',
+      nav_upload: 'Upload data', nav_settings: 'Pengaturan',
+      close: 'Tutup', cancel: 'Batal', reset: 'Reset', ok: 'OK', save: 'Simpan', saving: 'Menyimpan...',
+      search_placeholder: 'Cari...', no_result: 'Tidak ada hasil',
+      required_field: 'Wajib diisi', chars_left: '{n} karakter lagi',
 
       loading: 'Memuat data',
 
@@ -217,17 +254,48 @@ const CONFIG = {
       health_ok: 'Sehat', health_great: 'Sangat sehat',
       pct_used: '{p}% terpakai',
 
+      // ---- Kegiatan
+      act_add: 'Tambahkan kegiatan', act_calendar: 'Kalender kegiatan', act_list: 'Daftar kegiatan',
+      act_form_title: 'Tambahkan kegiatan', act_name: 'Nama', act_date: 'Tanggal',
+      act_store: 'Toko', act_type: 'Kegiatan',
+      act_pick_store: 'Pilih toko', act_pick_type: 'Pilih kegiatan',
+      act_saved: 'Kegiatan tersimpan', act_save_failed: 'Gagal menyimpan kegiatan',
+      act_filter: 'Filter kegiatan', act_result: 'Hasil',
+      act_count: '{n} kegiatan', act_none: 'Belum ada kegiatan pada filter ini.',
+      act_day_title: 'Kegiatan {date}', act_legend: 'Keterangan',
+      act_reload: 'Muat ulang kegiatan',
+      act_err_name: 'Nama wajib diisi.', act_err_date: 'Tanggal wajib diisi.',
+      act_err_store: 'Toko wajib dipilih.', act_err_type: 'Kegiatan wajib dipilih.',
+      act_err_field: '{f} wajib diisi.',
+
+      // ---- Komplain
+      cmp_add: 'Tambahkan komplain', cmp_list: 'Daftar komplain', cmp_form_title: 'Tambahkan komplain',
+      cmp_name: 'Nama', cmp_contact: 'Kontak', cmp_address: 'Alamat', cmp_store: 'Nama Store',
+      cmp_media: 'Media Komplain', cmp_category: 'Kategori',
+      cmp_trx_date: 'Tanggal Transaksi', cmp_body: 'Isi Komplain',
+      cmp_pick_media: 'Pilih media', cmp_pick_category: 'Pilih kategori',
+      cmp_saved: 'Komplain tersimpan', cmp_save_failed: 'Gagal menyimpan komplain',
+      cmp_filter: 'Filter komplain', cmp_count: '{n} komplain',
+      cmp_none: 'Belum ada komplain pada filter ini.',
+      cmp_reload: 'Muat ulang komplain',
+      cmp_err_name: 'Nama wajib diisi.', cmp_err_store: 'Nama Store wajib dipilih.',
+      cmp_err_media: 'Media Komplain wajib dipilih.', cmp_err_category: 'Kategori wajib dipilih.',
+      cmp_err_date: 'Tanggal Transaksi wajib diisi.', cmp_err_body: 'Isi Komplain wajib diisi.',
+
       months_short: ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'],
       months_full:  ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'],
       days_short:   ['Sen','Sel','Rab','Kam','Jum','Sab','Min']
     },
     en: {
-      nav_dashboard: 'Dashboard', nav_sales: 'Sales', nav_upload: 'Upload data', nav_settings: 'Settings',
-      close: 'Close', cancel: 'Cancel', reset: 'Reset', ok: 'OK',
+      nav_dashboard: 'Dashboard', nav_sales: 'Sales', nav_activity: 'Activity', nav_complaint: 'Complaint',
+      nav_upload: 'Upload data', nav_settings: 'Settings',
+      close: 'Close', cancel: 'Cancel', reset: 'Reset', ok: 'OK', save: 'Save', saving: 'Saving...',
+      search_placeholder: 'Search...', no_result: 'No result',
+      required_field: 'Required', chars_left: '{n} characters left',
 
       loading: 'Loading data',
 
-      total_sales: 'Total sales', click_for_detail: 'Tap for detail', vs_prev_month: 'vs last month', prev_month: 'last month',
+      total_sales: 'Total sales', click_for_detail: 'Tap for detail', prev_month: 'last month',
 
       sales_regional: 'Regional sales', sales_area: 'Area sales', sales_store: 'Store sales',
 
@@ -235,8 +303,9 @@ const CONFIG = {
 
       trend_daily: 'Daily', trend_weekly: 'Weekly', trend_monthly: 'Monthly',
       trend_title: 'Trend', trend_current: 'This period', trend_prev: 'Last month',
-      trend_compare_hint: 'Tap chart to compare with last month',
-      trend_compare_title: 'Comparison vs last month',
+      trend_prev_year: 'Last year',
+      trend_compare_hint: 'Tap chart to compare',
+      trend_compare_title: 'Comparison',
       trend_week_prefix: 'W', trend_month_prefix: '',
 
       top10: 'Top 10 stores by sales', low10: 'Bottom 10 stores by sales',
@@ -287,6 +356,34 @@ const CONFIG = {
       health_critical: 'Critical', health_warn: 'Near limit',
       health_ok: 'Healthy', health_great: 'Very healthy',
       pct_used: '{p}% used',
+
+      // ---- Activity
+      act_add: 'Add activity', act_calendar: 'Activity calendar', act_list: 'Activity list',
+      act_form_title: 'Add activity', act_name: 'Name', act_date: 'Date',
+      act_store: 'Store', act_type: 'Activity',
+      act_pick_store: 'Pick a store', act_pick_type: 'Pick an activity',
+      act_saved: 'Activity saved', act_save_failed: 'Failed to save activity',
+      act_filter: 'Filter activities', act_result: 'Results',
+      act_count: '{n} activities', act_none: 'No activity matches this filter.',
+      act_day_title: 'Activities on {date}', act_legend: 'Legend',
+      act_reload: 'Reload activities',
+      act_err_name: 'Name is required.', act_err_date: 'Date is required.',
+      act_err_store: 'Store is required.', act_err_type: 'Activity is required.',
+      act_err_field: '{f} is required.',
+
+      // ---- Complaint
+      cmp_add: 'Add complaint', cmp_list: 'Complaint list', cmp_form_title: 'Add complaint',
+      cmp_name: 'Name', cmp_contact: 'Contact', cmp_address: 'Address', cmp_store: 'Store name',
+      cmp_media: 'Complaint media', cmp_category: 'Category',
+      cmp_trx_date: 'Transaction date', cmp_body: 'Complaint detail',
+      cmp_pick_media: 'Pick media', cmp_pick_category: 'Pick category',
+      cmp_saved: 'Complaint saved', cmp_save_failed: 'Failed to save complaint',
+      cmp_filter: 'Filter complaints', cmp_count: '{n} complaints',
+      cmp_none: 'No complaint matches this filter.',
+      cmp_reload: 'Reload complaints',
+      cmp_err_name: 'Name is required.', cmp_err_store: 'Store name is required.',
+      cmp_err_media: 'Complaint media is required.', cmp_err_category: 'Category is required.',
+      cmp_err_date: 'Transaction date is required.', cmp_err_body: 'Complaint detail is required.',
 
       months_short: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
       months_full:  ['January','February','March','April','May','June','July','August','September','October','November','December'],

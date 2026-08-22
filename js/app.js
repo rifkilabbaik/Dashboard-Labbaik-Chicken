@@ -1,11 +1,18 @@
 // ============================================================================
-// SALES DASHBOARD v7 — i18n (id/en), palettes, revamped dashboard/sales,
-// trend tabs (daily/weekly/monthly) + compare-vs-prev-month
+// SALES DASHBOARD v8 — i18n (id/en), palettes, dashboard/sales,
+// trend tabs (daily line / weekly+monthly bar) + compare popup,
+// Kegiatan (activity log + calendar) & Komplain (complaint intake)
 // ============================================================================
 
 const App = {
   data: [], regional: [], status: null,
   branchMeta: {}, activeBranches: [], areaToRegional: {}, regionalToAreas: {},
+
+  // Kegiatan & Komplain
+  activities: [], complaints: [],
+  actFilter: { from: '', to: '', name: '', store: '', type: '' },
+  cmpFilter: { from: '', to: '', store: '', media: '', category: '' },
+  _actCalYear: null, _actCalMonth: null,
 
   filter: { from: '', to: '' },  // no more preset
   applied: null,
@@ -45,6 +52,8 @@ const App = {
     this._bindFilterModal();
     this._bindDashboardEvents();
     this._bindSalesPage();
+    this._bindActivityPage();
+    this._bindComplaintPage();
     this._bindSettingsPage();
     this._bindUploadPage();
     this._bindModals();
@@ -148,12 +157,22 @@ const App = {
     this.currentPage = page;
     document.querySelectorAll('.sidebar-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.dataset.page === page));
-    const titleMap = { dashboard: this.t('nav_dashboard'), sales: this.t('nav_sales'), upload: this.t('nav_upload'), settings: this.t('nav_settings') };
-    document.getElementById('pageTitle').textContent = titleMap[page] || '';
-    document.getElementById('btnFilter').style.display = (page === 'settings' || page === 'upload') ? 'none' : '';
+    document.getElementById('pageTitle').textContent = this._pageTitle(page);
+    // Filter periode hanya relevan untuk halaman penjualan
+    document.getElementById('btnFilter').style.display = (page === 'dashboard' || page === 'sales') ? '' : 'none';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (page === 'sales') this._renderSales();
     if (page === 'upload') this._resetUploadUi();
+    if (page === 'activity') this.loadActivities(true);
+    if (page === 'complaint') this.loadComplaints(true);
+  },
+  _pageTitle(page) {
+    const titleMap = {
+      dashboard: this.t('nav_dashboard'), sales: this.t('nav_sales'),
+      activity: this.t('nav_activity'), complaint: this.t('nav_complaint'),
+      upload: this.t('nav_upload'), settings: this.t('nav_settings')
+    };
+    return titleMap[page] || '';
   },
   _bindTopbar() {
     document.getElementById('btnFilter').addEventListener('click', () => this._openFilterModal());
@@ -200,6 +219,7 @@ const App = {
   },
   _applyFilter() {
     this._captureFilter();
+    this._rangeIsDefault = false;
     this.applied = { ...this.filter };
     document.getElementById('filterModal').hidden = true;
     this._computeFiltered();
@@ -213,8 +233,9 @@ const App = {
     };
   },
 
-  // Default = 1st of month to latest date with data
+  // Default = tanggal 1 bulan berjalan s/d tanggal data penjualan terakhir
   _setDefaultRange() {
+    this._rangeIsDefault = true;
     let now;
     const latest = this._latestDate();
     if (latest) {
@@ -248,10 +269,15 @@ const App = {
     else label.textContent = this._formatShort(from) + ' – ' + this._formatShort(to) + ' ' + to.split('-')[0];
   },
 
-  // Range picker
-  _openRangePicker() {
-    this._rangeFrom = document.getElementById('fFrom').value || null;
-    this._rangeTo = document.getElementById('fTo').value || null;
+  // Range picker — dipakai filter periode penjualan, kegiatan, & komplain.
+  // opts: { from, to, allowClear, onApply(from, to) }
+  _openRangePicker(opts) {
+    opts = opts || {};
+    const isPeriod = opts.onApply == null;
+    const from = isPeriod ? document.getElementById('fFrom').value : opts.from;
+    const to   = isPeriod ? document.getElementById('fTo').value   : opts.to;
+    this._rangeFrom = from || null;
+    this._rangeTo = to || null;
     this._rangeStep = 0;
     const anchor = this._rangeFrom || this._latestDate() || this._toDateStr(new Date());
     const [ay, am] = anchor.split('-').map(Number);
@@ -261,13 +287,26 @@ const App = {
     const modal = document.getElementById('rangeModal');
     modal.hidden = false;
     modal.querySelectorAll('[data-close-modal]').forEach(el => el.onclick = () => modal.hidden = true);
+
+    const apply = opts.onApply || ((f, t) => {
+      document.getElementById('fFrom').value = f;
+      document.getElementById('fTo').value = t;
+      this._updateRangeLabel();
+      this._updateCancelResetBtn();
+    });
+
+    const clearBtn = document.getElementById('rangeClear');
+    clearBtn.hidden = !opts.allowClear;
+    clearBtn.textContent = this.t('all');
+    clearBtn.onclick = () => { modal.hidden = true; apply('', ''); };
+
     document.getElementById('rangeOk').onclick = () => {
-      if (this._rangeFrom && this._rangeTo) {
-        if (this._rangeFrom > this._rangeTo) { const t = this._rangeFrom; this._rangeFrom = this._rangeTo; this._rangeTo = t; }
-        document.getElementById('fFrom').value = this._rangeFrom;
-        document.getElementById('fTo').value = this._rangeTo;
-        this._updateRangeLabel();
-        this._updateCancelResetBtn();
+      if (this._rangeFrom) {
+        let f = this._rangeFrom, t = this._rangeTo || this._rangeFrom;
+        if (f > t) { const tmp = f; f = t; t = tmp; }
+        modal.hidden = true;
+        apply(f, t);
+        return;
       }
       modal.hidden = true;
     };
@@ -329,10 +368,9 @@ const App = {
       this.status = status;
       Sheets.saveCache(data, regional, status);
       this._buildBranchMeta();
-      // If range still using default (bulan berjalan), re-anchor to latest data
-      if (this.applied && this.applied.from) {
-        // keep applied unless empty
-      } else {
+      // Selama user belum mengubah filter, re-anchor ke data terbaru
+      // (awal bulan -> tanggal data penjualan paling update).
+      if (this._rangeIsDefault || !this.applied || !this.applied.from) {
         this._setDefaultRange();
         this.applied = { ...this.filter };
       }
@@ -403,10 +441,17 @@ const App = {
   // ==========================================================================
   // RENDER ALL
   // ==========================================================================
+  // Setiap bagian dibungkus supaya satu error tidak menggagalkan render bagian lain
+  // (dulu error di grafik tren membuat Info data di Pengaturan tidak pernah terisi).
+  _safe(name, fn) {
+    try { fn(); } catch (e) { console.error('Render ' + name + ' gagal:', e); }
+  },
   _renderAll() {
-    this._renderDashboard();
-    if (this.currentPage === 'sales') this._renderSales();
-    this._renderSettings();
+    this._safe('dashboard', () => this._renderDashboard());
+    if (this.currentPage === 'sales') this._safe('sales', () => this._renderSales());
+    this._safe('settings', () => this._renderSettings());
+    if (this.currentPage === 'activity')  this._safe('activity',  () => this._renderActivityPage());
+    if (this.currentPage === 'complaint') this._safe('complaint', () => this._renderComplaintPage());
   },
 
   // ==========================================================================
@@ -449,13 +494,13 @@ const App = {
     }
     document.querySelector('#mcTotal .metric-hero-hint').textContent = this.t('click_for_detail');
 
-    this._renderMetricGroups();
-    this._renderRegionalList();
-    this._renderAreaList();
+    this._safe('metricGroups', () => this._renderMetricGroups());
+    this._safe('regionalList', () => this._renderRegionalList());
+    this._safe('areaList',     () => this._renderAreaList());
 
     // Active trend tab reflection
     document.querySelectorAll('.trend-tab').forEach(b => b.classList.toggle('active', b.dataset.trend === this.trendView));
-    this._renderTrend();
+    this._safe('trend', () => this._renderTrend());
 
     // Top / Low 10
     const branchTotals = {};
@@ -552,7 +597,7 @@ const App = {
   // ==========================================================================
   _renderTrend() {
     const t = this._buildTrendSeries(this.trendView, false);
-    this._drawTrend(t.labels, t.values, t.dates);
+    this._drawTrend(t.labels, t.values, t.dates, this.trendView);
     const hint = document.getElementById('trendHint');
     hint.textContent = this.t('trend_compare_hint');
   },
@@ -592,8 +637,9 @@ const App = {
         dates:  bins.map(b => b.start + ' — ' + b.end)
       };
     }
-    // monthly: 12 months of currentYear (or previous year if isPrev)
-    const year = new Date().getFullYear() - (isPrev ? 1 : 0);
+    // monthly: 12 bulan dari tahun periode aktif (atau tahun sebelumnya kalau isPrev)
+    const anchor = (this.applied && this.applied.to) || this._latestDate() || this._toDateStr(new Date());
+    const year = parseInt(anchor.split('-')[0], 10) - (isPrev ? 1 : 0);
     const totals = new Array(12).fill(0);
     this.data.forEach(r => {
       const [y, m] = r.date.split('-').map(Number);
@@ -616,7 +662,8 @@ const App = {
     return out;
   },
 
-  _drawTrend(labels, values, dates) {
+  _drawTrend(labels, values, dates, view) {
+    if (typeof Chart === 'undefined') return;
     const ctx = document.getElementById('dTrendChart').getContext('2d');
     if (this.charts.trend) this.charts.trend.destroy();
     const cs = getComputedStyle(document.documentElement);
@@ -625,10 +672,23 @@ const App = {
     const gridColor = cs.getPropertyValue('--line').trim() || '#E8E2D3';
     const maxV = Math.max.apply(null, values.length ? values : [0]);
     // Daily = line chart; weekly & monthly = bar chart
-    const type = view === 'daily' ? 'line' : 'bar';
+    const isLine = view === 'daily';
+    const type = isLine ? 'line' : 'bar';
     this.charts.trend = new Chart(ctx, {
       type,
-      data: { labels, datasets: [{ data: values, borderColor: seaColor, backgroundColor: view === 'daily' ? this._hexToRgba(seaColor, 0.1) : seaColor, borderWidth: view === 'daily' ? 2 : 0, fill: view === 'daily', tension: view === 'daily' ? 0.3 : 0, pointRadius: view === 'daily' ? 3 : 0, pointHoverRadius: view === 'daily' ? 5 : 0, pointBackgroundColor: seaColor }] },
+      data: { labels, datasets: [{
+        data: values,
+        borderColor: seaColor,
+        backgroundColor: isLine ? this._hexToRgba(seaColor, 0.1) : seaColor,
+        borderWidth: isLine ? 2 : 0,
+        fill: isLine,
+        tension: isLine ? 0.3 : 0,
+        pointRadius: isLine ? 3 : 0,
+        pointHoverRadius: isLine ? 5 : 0,
+        pointBackgroundColor: seaColor,
+        borderRadius: isLine ? 0 : 4,
+        maxBarThickness: 42
+      }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
@@ -657,10 +717,12 @@ const App = {
     };
     document.getElementById('trendModalTitle').textContent = titleMap[this.trendView] + ' · ' + this.t('trend_compare_title');
     document.getElementById('trendModal').hidden = false;
-    setTimeout(() => this._drawTrendCompare(labels, cur.values, prevValues), 30);
+    const view = this.trendView;
+    setTimeout(() => this._drawTrendCompare(labels, cur.values, prevValues, view), 30);
   },
 
-  _drawTrendCompare(labels, cur, prev) {
+  _drawTrendCompare(labels, cur, prev, view) {
+    if (typeof Chart === 'undefined') return;
     const ctx = document.getElementById('trendCompareChart').getContext('2d');
     if (this.charts.compare) this.charts.compare.destroy();
     const cs = getComputedStyle(document.documentElement);
@@ -669,14 +731,17 @@ const App = {
     const inkColor = cs.getPropertyValue('--ink-3').trim() || '#8A93A0';
     const gridColor = cs.getPropertyValue('--line').trim() || '#E8E2D3';
     const maxV = Math.max.apply(null, [...cur, ...prev, 0]);
-    const prevLabel = view === 'daily' ? this.t('trend_prev') : this.t('trend_prev_year');
+    // Monthly membandingkan 12 bulan tahun ini vs tahun lalu -> "Tahun lalu".
+    // Daily & weekly membandingkan rentang periode vs rentang bulan lalu -> "Bulan lalu".
+    const prevLabel = view === 'monthly' ? this.t('trend_prev_year') : this.t('trend_prev');
+    const isLine = view === 'daily';
     this.charts.compare = new Chart(ctx, {
-      type: 'line',
+      type: isLine ? 'line' : 'bar',
       data: {
         labels,
         datasets: [
-          { label: this.t('trend_current'), data: cur, borderColor: seaColor, backgroundColor: this._hexToRgba(seaColor, 0.1), borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, fill: false },
-          { label: prevLabel, data: prev, borderColor: accent2, backgroundColor: this._hexToRgba(accent2, 0.08), borderWidth: 2, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, borderDash: [4, 4], fill: false }
+          { label: this.t('trend_current'), data: cur, borderColor: seaColor, backgroundColor: isLine ? this._hexToRgba(seaColor, 0.1) : seaColor, borderWidth: isLine ? 2 : 0, tension: isLine ? 0.3 : 0, pointRadius: isLine ? 2 : 0, pointHoverRadius: isLine ? 5 : 0, fill: false, borderRadius: isLine ? 0 : 3, maxBarThickness: 28 },
+          { label: prevLabel, data: prev, borderColor: accent2, backgroundColor: isLine ? this._hexToRgba(accent2, 0.08) : this._hexToRgba(accent2, 0.45), borderWidth: isLine ? 2 : 0, tension: isLine ? 0.3 : 0, pointRadius: isLine ? 2 : 0, pointHoverRadius: isLine ? 5 : 0, borderDash: isLine ? [4, 4] : undefined, fill: false, borderRadius: isLine ? 0 : 3, maxBarThickness: 28 }
         ]
       },
       options: {
@@ -1006,8 +1071,7 @@ const App = {
       this._renderAll();
       this._updatePeriodLabel();
       // update current page title
-      const titleMap = { dashboard: this.t('nav_dashboard'), sales: this.t('nav_sales'), upload: this.t('nav_upload'), settings: this.t('nav_settings') };
-      document.getElementById('pageTitle').textContent = titleMap[this.currentPage] || '';
+      document.getElementById('pageTitle').textContent = this._pageTitle(this.currentPage);
       // Re-render toko dropdowns to update "Semua"
       this._renderTokoDropdowns();
     });
@@ -1062,33 +1126,79 @@ const App = {
   // ==========================================================================
   // DROPDOWN COMPONENT
   // ==========================================================================
-  _initDropdown(key, options, current, onChange) {
+  // opts: { search: true, placeholder: '...' }
+  //  - search   : tampilkan kotak cari di dalam menu (untuk daftar panjang, mis. toko)
+  //  - placeholder: label saat belum ada pilihan (value '' tidak ada di options)
+  _initDropdown(key, options, current, onChange, opts) {
     const wrap = document.querySelector(`.dropdown-select[data-key="${key}"]`);
     if (!wrap) return;
-    wrap.dataset.current = current == null ? '' : current;
+    opts = opts || {};
+    const curVal = current == null ? '' : String(current);
+    wrap.dataset.current = curVal;
     wrap._options = options; wrap._onChange = onChange;
     const items = Object.entries(options);
-    const cur = items.find(([k]) => k === (current == null ? '' : String(current)));
-    const curLabel = cur ? (typeof cur[1] === 'string' ? cur[1] : cur[1].label) : (Object.values(options)[0] && (typeof Object.values(options)[0] === 'string' ? Object.values(options)[0] : Object.values(options)[0].label)) || '—';
-    wrap.innerHTML = `<button type="button" class="dd-btn">${this._esc(curLabel)}<span class="dd-arrow">▾</span></button>
-      <div class="dd-menu" hidden>
-        ${items.map(([k, v]) => {
-          const label = typeof v === 'string' ? v : v.label;
-          const stack = typeof v === 'object' && v.stack ? v.stack : '';
-          return `<div class="dd-opt${k === (current == null ? '' : String(current)) ? ' active' : ''}" data-v="${this._esc(k)}"${stack ? ` style="font-family:${stack}"` : ''}>${this._esc(label)}</div>`;
-        }).join('')}
+    const labelOf = (v) => (typeof v === 'string' ? v : v.label);
+    const cur = items.find(([k]) => k === curVal);
+    let curLabel;
+    if (cur) curLabel = labelOf(cur[1]);
+    else if (opts.placeholder) curLabel = opts.placeholder;
+    else curLabel = items.length ? labelOf(items[0][1]) : '—';
+
+    const optsHtml = items.map(([k, v]) => {
+      const label = labelOf(v);
+      const stack = typeof v === 'object' && v.stack ? v.stack : '';
+      return `<div class="dd-opt${k === curVal ? ' active' : ''}" data-v="${this._esc(k)}" data-s="${this._esc(String(label).toLowerCase())}"${stack ? ` style="font-family:${stack}"` : ''}>${this._esc(label)}</div>`;
+    }).join('');
+
+    wrap.innerHTML = `<button type="button" class="dd-btn${cur ? '' : (opts.placeholder ? ' dd-btn-empty' : '')}">${this._esc(curLabel)}<span class="dd-arrow">▾</span></button>
+      <div class="dd-menu${opts.search ? ' dd-menu-search' : ''}" hidden>
+        ${opts.search ? `<div class="dd-search"><input type="text" class="dd-search-input" placeholder="${this._esc(this.t('search_placeholder'))}" /></div>` : ''}
+        <div class="dd-opts">${optsHtml}</div>
+        ${opts.search ? `<div class="dd-empty" hidden>${this._esc(this.t('no_result'))}</div>` : ''}
       </div>`;
+
     const btn = wrap.querySelector('.dd-btn');
     const menu = wrap.querySelector('.dd-menu');
-    btn.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.dd-menu').forEach(m => { if (m !== menu) m.hidden = true; }); menu.hidden = !menu.hidden; };
+    const input = wrap.querySelector('.dd-search-input');
+    // Klik di dalam menu tidak menutup menu (penting untuk kotak cari)
+    menu.onclick = (e) => e.stopPropagation();
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.dd-menu').forEach(m => { if (m !== menu) m.hidden = true; });
+      menu.hidden = !menu.hidden;
+      if (!menu.hidden && input) { input.value = ''; this._ddFilter(wrap, ''); input.focus(); }
+    };
+    if (input) input.oninput = () => this._ddFilter(wrap, input.value);
     wrap.querySelectorAll('.dd-opt').forEach(el => {
-      el.onclick = (e) => { e.stopPropagation(); wrap.dataset.current = el.dataset.v; menu.hidden = true; onChange(el.dataset.v); };
+      el.onclick = (e) => {
+        e.stopPropagation();
+        wrap.dataset.current = el.dataset.v;
+        menu.hidden = true;
+        // Perbarui label tombol + state aktif
+        btn.classList.remove('dd-btn-empty');
+        // firstChild = text node label; sisipkan kalau belum ada
+        if (btn.firstChild && btn.firstChild.nodeType === 3) btn.firstChild.textContent = el.textContent;
+        else btn.insertBefore(document.createTextNode(el.textContent), btn.firstChild);
+        wrap.querySelectorAll('.dd-opt').forEach(o => o.classList.toggle('active', o === el));
+        onChange(el.dataset.v);
+      };
     });
     // Global outside close
     if (!App._ddOutsideBound) {
       App._ddOutsideBound = true;
       document.addEventListener('click', () => document.querySelectorAll('.dd-menu').forEach(m => m.hidden = true));
     }
+  },
+  _ddFilter(wrap, q) {
+    const needle = String(q || '').trim().toLowerCase();
+    let shown = 0;
+    wrap.querySelectorAll('.dd-opt').forEach(el => {
+      const hit = !needle || el.dataset.s.indexOf(needle) !== -1;
+      el.hidden = !hit;
+      if (hit) shown++;
+    });
+    const empty = wrap.querySelector('.dd-empty');
+    if (empty) empty.hidden = shown > 0;
   },
 
   // ==========================================================================
@@ -1186,6 +1296,546 @@ const App = {
       err.hidden = false;
       err.innerHTML = `<div class="error-box"><div class="error-box-icon">!</div><div><div class="error-box-title">${this._esc(this.t('upload_fail_title'))}</div><div class="error-box-msg">${this._esc(e.message)}</div></div></div>`;
       actions.querySelectorAll('button').forEach(b => b.disabled = false);
+    }
+  },
+
+  // ==========================================================================
+  // KEGIATAN & KOMPLAIN — shared helpers
+  // ==========================================================================
+  // Daftar toko untuk dropdown: dari sheet Regional, fallback ke data penjualan.
+  _storeList() {
+    let list = (this.activeBranches || []).slice();
+    if (list.length === 0) list = Array.from(new Set(this.data.map(r => r.branch)));
+    return list.filter(Boolean).sort((a, b) => this._short(a).localeCompare(this._short(b)));
+  },
+  _storeOptions(withAll) {
+    const opts = {};
+    if (withAll) opts[''] = this.t('all');
+    this._storeList().forEach(b => { opts[b] = this._short(b); });
+    return opts;
+  },
+  _activityType(key) {
+    return CONFIG.ACTIVITY_TYPES.find(t => t.key === key) || null;
+  },
+  _typeColor(key) {
+    const t = this._activityType(key);
+    return t ? t.color : 'var(--ink-3)';
+  },
+  // dd/mm/yyyy — format daftar sesuai permintaan
+  _formatDMY(s) {
+    if (!s) return '';
+    const [y, m, d] = String(s).split('-');
+    if (!y || !m || !d) return String(s);
+    return d + '/' + m + '/' + y;
+  },
+  _inRange(date, from, to) {
+    if (from && (!date || date < from)) return false;
+    if (to && (!date || date > to)) return false;
+    return true;
+  },
+  _formErr(id, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!msg) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = msg;
+  },
+
+  // ==========================================================================
+  // KEGIATAN — page
+  // ==========================================================================
+  _bindActivityPage() {
+    document.getElementById('btnActAdd').addEventListener('click', () => this._openActivityForm());
+    document.getElementById('btnActCal').addEventListener('click', () => this._openActivityCalendar());
+    document.getElementById('btnActReset').addEventListener('click', () => {
+      this.actFilter = { from: '', to: '', name: '', store: '', type: '' };
+      this._renderActivityPage();
+    });
+    document.getElementById('actRangeTrigger').addEventListener('click', () => {
+      this._openRangePicker({
+        from: this.actFilter.from, to: this.actFilter.to, allowClear: true,
+        onApply: (from, to) => { this.actFilter.from = from; this.actFilter.to = to; this._renderActivityPage(); }
+      });
+    });
+    document.getElementById('actFormSave').addEventListener('click', () => this._saveActivity());
+    document.querySelectorAll('#actFormModal [data-close-modal], #actCalModal [data-close-modal], #actDayModal [data-close-modal]')
+      .forEach(el => el.addEventListener('click', () => { el.closest('.modal').hidden = true; }));
+    document.getElementById('btnActReload').addEventListener('click', () => this.loadActivities(false, true));
+  },
+
+  async loadActivities(useCacheFirst, force) {
+    if (useCacheFirst) {
+      const cached = Sheets.loadList(Sheets.CACHE_KEY_ACTIVITY);
+      if (cached) { this.activities = cached; this._renderActivityPage(); }
+    }
+    if (this._actLoading) return;
+    if (!force && this._actLoaded) return;
+    this._actLoading = true;
+    const list = document.getElementById('actList');
+    if (!this.activities.length) list.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
+    try {
+      this.activities = await Sheets.fetchActivities();
+      Sheets.saveList(Sheets.CACHE_KEY_ACTIVITY, this.activities);
+      this._actLoaded = true;
+      this._renderActivityPage();
+    } catch (e) {
+      this._toast(this.t('toast_load_failed', { msg: e.message }));
+      if (!this.activities.length) list.innerHTML = `<div class="empty-note">${this._esc(e.message)}</div>`;
+    } finally { this._actLoading = false; }
+  },
+
+  _renderActivityPage() {
+    this._renderActivityFilters();
+    this._renderActivityList();
+  },
+
+  _renderActivityFilters() {
+    // Rentang tanggal
+    const rl = document.getElementById('actRangeLabel');
+    const f = this.actFilter;
+    if (!f.from && !f.to) rl.textContent = this.t('all');
+    else if (f.from && f.to) rl.textContent = this._formatDMY(f.from) + ' – ' + this._formatDMY(f.to);
+    else rl.textContent = this._formatDMY(f.from || f.to);
+
+    // Nama (dari data kegiatan)
+    const names = Array.from(new Set(this.activities.map(a => a.name).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+    const nameOpts = { '': this.t('all') };
+    names.forEach(n => { nameOpts[n] = n; });
+    if (f.name && !nameOpts[f.name]) nameOpts[f.name] = f.name;
+    this._initDropdown('actFName', nameOpts, f.name, (v) => { f.name = v; this._renderActivityList(); }, { search: true });
+
+    // Toko: hanya toko yang punya kegiatan + opsi semua
+    const stores = Array.from(new Set(this.activities.map(a => a.store).filter(Boolean)))
+      .sort((a, b) => this._short(a).localeCompare(this._short(b)));
+    const storeOpts = { '': this.t('all') };
+    stores.forEach(b => { storeOpts[b] = this._short(b); });
+    if (f.store && !storeOpts[f.store]) storeOpts[f.store] = this._short(f.store);
+    this._initDropdown('actFStore', storeOpts, f.store, (v) => { f.store = v; this._renderActivityList(); }, { search: true });
+
+    // Kegiatan
+    const typeOpts = { '': this.t('all') };
+    CONFIG.ACTIVITY_TYPES.forEach(t => { typeOpts[t.key] = this._loc(t.label); });
+    this._initDropdown('actFType', typeOpts, f.type, (v) => { f.type = v; this._renderActivityList(); });
+  },
+
+  _filteredActivities() {
+    const f = this.actFilter;
+    return this.activities.filter(a => {
+      if (!this._inRange(a.date, f.from, f.to)) return false;
+      if (f.name && a.name !== f.name) return false;
+      if (f.store && a.store !== f.store) return false;
+      if (f.type && a.type !== f.type) return false;
+      return true;
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(a.name).localeCompare(String(b.name)));
+  },
+
+  _activityDetailText(a) {
+    const type = this._activityType(a.type);
+    if (!type) return [a.k1, a.k2].filter(Boolean).join(' · ');
+    return type.fields
+      .map(fl => ({ label: this._loc(fl.label), val: fl.slot === 'k1' ? a.k1 : a.k2 }))
+      .filter(x => x.val !== '' && x.val != null)
+      .map(x => x.label + ': ' + x.val)
+      .join(' · ');
+  },
+
+  _renderActivityList() {
+    const rows = this._filteredActivities();
+    document.getElementById('actCount').textContent = this.t('act_count', { n: rows.length });
+    const el = document.getElementById('actList');
+    if (rows.length === 0) {
+      el.innerHTML = `<div class="empty-note">${this._esc(this.t('act_none'))}</div>`;
+      return;
+    }
+    el.innerHTML = rows.map(a => {
+      const detail = this._activityDetailText(a);
+      return `<div class="act-row">
+        <div class="act-row-main">
+          <span class="act-date">${this._esc(this._formatDMY(a.date))}</span>
+          <span class="act-name">${this._esc(a.name)}</span>
+          <span class="act-store">${this._esc(this._short(a.store))}</span>
+          <span class="act-tag" style="background:${this._typeColor(a.type)}">${this._esc(a.type)}</span>
+        </div>
+        ${detail ? `<div class="act-row-detail">${this._esc(detail)}</div>` : ''}
+      </div>`;
+    }).join('');
+  },
+
+  // ==========================================================================
+  // KEGIATAN — form tambah
+  // ==========================================================================
+  _openActivityForm() {
+    this._actDraft = { name: '', date: this._toDateStr(new Date()), store: '', type: '', k1: '', k2: '' };
+    document.getElementById('actFName').value = '';
+    document.getElementById('actFDate').value = this._actDraft.date;
+    this._formErr('actFormError', '');
+    this._initDropdown('actFormStore', this._storeOptions(false), '', (v) => {
+      this._actDraft.store = v; this._formErr('actFormError', '');
+    }, { search: true, placeholder: this.t('act_pick_store') });
+    const typeOpts = {};
+    CONFIG.ACTIVITY_TYPES.forEach(t => { typeOpts[t.key] = this._loc(t.label); });
+    this._initDropdown('actFormType', typeOpts, '', (v) => {
+      this._actDraft.type = v;
+      this._formErr('actFormError', '');
+      this._renderActivityTypeFields();
+    }, { placeholder: this.t('act_pick_type') });
+    this._renderActivityTypeFields();
+    ['actFName', 'actFDate'].forEach(id => {
+      document.getElementById(id).oninput = () => this._formErr('actFormError', '');
+    });
+    document.getElementById('actFormSave').disabled = false;
+    document.getElementById('actFormSave').textContent = this.t('save');
+    document.getElementById('actFormModal').hidden = false;
+  },
+
+  _renderActivityTypeFields() {
+    const wrap = document.getElementById('actFormDynamic');
+    const type = this._activityType(this._actDraft.type);
+    if (!type) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = type.fields.map(fl => {
+      const label = this._esc(this._loc(fl.label));
+      const id = 'actDyn_' + fl.slot;
+      if (fl.type === 'textarea') {
+        return `<div class="form-row">
+          <label for="${id}">${label}</label>
+          <textarea id="${id}" class="form-input" rows="3" maxlength="${fl.max}" data-slot="${fl.slot}"></textarea>
+          <div class="char-hint" id="${id}_hint">${this._esc(this.t('chars_left', { n: fl.max }))}</div>
+        </div>`;
+      }
+      const inputType = fl.type === 'number' ? 'number' : 'text';
+      const extra = fl.type === 'number' ? `min="0" step="1"` : `maxlength="${fl.max}"`;
+      return `<div class="form-row">
+        <label for="${id}">${label}</label>
+        <input id="${id}" class="form-input" type="${inputType}" ${extra} data-slot="${fl.slot}" />
+      </div>`;
+    }).join('');
+    // Sinkron ke draft + counter karakter
+    wrap.querySelectorAll('[data-slot]').forEach(inp => {
+      const slot = inp.dataset.slot;
+      inp.value = this._actDraft[slot] || '';
+      inp.addEventListener('input', () => {
+        this._actDraft[slot] = inp.value;
+        this._formErr('actFormError', '');
+        const hint = document.getElementById(inp.id + '_hint');
+        if (hint) hint.textContent = this.t('chars_left', { n: Math.max(0, inp.maxLength - inp.value.length) });
+      });
+    });
+  },
+
+  async _saveActivity() {
+    const d = this._actDraft;
+    d.name = document.getElementById('actFName').value.trim();
+    d.date = document.getElementById('actFDate').value;
+    if (!d.name)  return this._formErr('actFormError', this.t('act_err_name'));
+    if (!d.date)  return this._formErr('actFormError', this.t('act_err_date'));
+    if (!d.store) return this._formErr('actFormError', this.t('act_err_store'));
+    if (!d.type)  return this._formErr('actFormError', this.t('act_err_type'));
+    const type = this._activityType(d.type);
+    for (const fl of type.fields) {
+      const val = String(d[fl.slot] == null ? '' : d[fl.slot]).trim();
+      if (!val) return this._formErr('actFormError', this.t('act_err_field', { f: this._loc(fl.label) }));
+    }
+    this._formErr('actFormError', '');
+    const btn = document.getElementById('actFormSave');
+    btn.disabled = true; btn.textContent = this.t('saving');
+    const row = {
+      date: d.date, name: d.name, store: d.store, type: d.type,
+      k1: String(d.k1 || '').trim(), k2: String(d.k2 || '').trim()
+    };
+    try {
+      await Sheets.addActivity(row);
+      this.activities = this.activities.concat([row]);
+      Sheets.saveList(Sheets.CACHE_KEY_ACTIVITY, this.activities);
+      document.getElementById('actFormModal').hidden = true;
+      this._toast(this.t('act_saved'));
+      this._renderActivityPage();
+      this.loadActivities(false, true);
+    } catch (e) {
+      this._formErr('actFormError', this.t('act_save_failed') + ': ' + e.message);
+      btn.disabled = false; btn.textContent = this.t('save');
+    }
+  },
+
+  // ==========================================================================
+  // KEGIATAN — kalender
+  // ==========================================================================
+  _openActivityCalendar() {
+    const anchor = (this.activities[0] && this.activities[0].date) || this._toDateStr(new Date());
+    const today = new Date();
+    this._actCalYear  = this._actCalYear  != null ? this._actCalYear  : today.getFullYear();
+    this._actCalMonth = this._actCalMonth != null ? this._actCalMonth : today.getMonth();
+    void anchor;
+    this._renderActivityCalendar();
+    document.getElementById('actCalModal').hidden = false;
+  },
+
+  // Index: 'yyyy-mm-dd' -> { FLD: [..], GCOM: [..], CX: [..] }
+  _activityByDate() {
+    const map = {};
+    this.activities.forEach(a => {
+      if (!a.date) return;
+      (map[a.date] = map[a.date] || []).push(a);
+    });
+    return map;
+  },
+
+  _renderActivityCalendar() {
+    const y = this._actCalYear, m = this._actCalMonth;
+    const byDate = this._activityByDate();
+    const monthNames = this.t('months_full');
+    const dowNames = this.t('days_short');
+    const startOffset = (new Date(y, m, 1).getDay() + 6) % 7;
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    let html = `<div class="cal-nav">
+      <button class="cal-nav-btn" id="actCalPrev">‹</button>
+      <div class="cal-title">${monthNames[m]} ${y}</div>
+      <button class="cal-nav-btn" id="actCalNext">›</button>
+    </div>
+    <div class="acal"><div class="acal-head">${dowNames.map(n => `<div>${n}</div>`).join('')}</div><div class="acal-grid">`;
+    for (let i = 0; i < startOffset; i++) html += '<div class="acal-cell empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      const items = byDate[ds] || [];
+      // Satu tag per kategori saja, walaupun kegiatannya banyak
+      const kinds = CONFIG.ACTIVITY_TYPES.filter(t => items.some(a => a.type === t.key));
+      const tags = kinds.map(t => `<span class="acal-tag" style="background:${t.color}">${this._esc(t.key)}</span>`).join('');
+      html += `<div class="acal-cell${items.length ? ' has' : ''}" data-d="${ds}">
+        <div class="acal-day">${d}</div>
+        <div class="acal-tags">${tags}</div>
+      </div>`;
+    }
+    html += '</div></div>';
+    document.getElementById('actCalendar').innerHTML = html;
+
+    document.getElementById('actCalLegend').innerHTML = CONFIG.ACTIVITY_TYPES
+      .map(t => `<span class="acal-legend-item"><span class="acal-dot" style="background:${t.color}"></span>${this._esc(this._loc(t.label))}</span>`).join('');
+
+    document.getElementById('actCalPrev').onclick = () => {
+      if (--this._actCalMonth < 0) { this._actCalMonth = 11; this._actCalYear--; }
+      this._renderActivityCalendar();
+    };
+    document.getElementById('actCalNext').onclick = () => {
+      if (++this._actCalMonth > 11) { this._actCalMonth = 0; this._actCalYear++; }
+      this._renderActivityCalendar();
+    };
+    document.querySelectorAll('#actCalendar .acal-cell.has').forEach(cell => {
+      cell.onclick = () => this._openActivityDay(cell.dataset.d);
+    });
+  },
+
+  _openActivityDay(ds) {
+    const items = this.activities.filter(a => a.date === ds)
+      .sort((a, b) => String(a.type).localeCompare(String(b.type)) || String(a.name).localeCompare(String(b.name)));
+    document.getElementById('actDayTitle').textContent = this.t('act_day_title', { date: this._formatFull(ds) });
+    const body = document.getElementById('actDayBody');
+    if (items.length === 0) { body.innerHTML = `<div class="empty-note">${this._esc(this.t('no_data'))}</div>`; }
+    else {
+      body.innerHTML = items.map(a => {
+        const detail = this._activityDetailText(a);
+        return `<div class="act-row">
+          <div class="act-row-main">
+            <span class="act-tag" style="background:${this._typeColor(a.type)}">${this._esc(a.type)}</span>
+            <span class="act-name">${this._esc(a.name)}</span>
+            <span class="act-store">${this._esc(this._short(a.store))}</span>
+          </div>
+          ${detail ? `<div class="act-row-detail">${this._esc(detail)}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('actDayModal').hidden = false;
+  },
+
+  // ==========================================================================
+  // KOMPLAIN
+  // ==========================================================================
+  _bindComplaintPage() {
+    document.getElementById('btnCmpAdd').addEventListener('click', () => this._openComplaintForm());
+    document.getElementById('btnCmpReset').addEventListener('click', () => {
+      this.cmpFilter = { from: '', to: '', store: '', media: '', category: '' };
+      this._renderComplaintPage();
+    });
+    document.getElementById('cmpRangeTrigger').addEventListener('click', () => {
+      this._openRangePicker({
+        from: this.cmpFilter.from, to: this.cmpFilter.to, allowClear: true,
+        onApply: (from, to) => { this.cmpFilter.from = from; this.cmpFilter.to = to; this._renderComplaintPage(); }
+      });
+    });
+    document.getElementById('cmpFormSave').addEventListener('click', () => this._saveComplaint());
+    document.querySelectorAll('#cmpFormModal [data-close-modal], #cmpDetailModal [data-close-modal]')
+      .forEach(el => el.addEventListener('click', () => { el.closest('.modal').hidden = true; }));
+    document.getElementById('btnCmpReload').addEventListener('click', () => this.loadComplaints(false, true));
+  },
+
+  async loadComplaints(useCacheFirst, force) {
+    if (useCacheFirst) {
+      const cached = Sheets.loadList(Sheets.CACHE_KEY_COMPLAINT);
+      if (cached) { this.complaints = cached; this._renderComplaintPage(); }
+    }
+    if (this._cmpLoading) return;
+    if (!force && this._cmpLoaded) return;
+    this._cmpLoading = true;
+    const list = document.getElementById('cmpList');
+    if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
+    try {
+      this.complaints = await Sheets.fetchComplaints();
+      Sheets.saveList(Sheets.CACHE_KEY_COMPLAINT, this.complaints);
+      this._cmpLoaded = true;
+      this._renderComplaintPage();
+    } catch (e) {
+      this._toast(this.t('toast_load_failed', { msg: e.message }));
+      if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(e.message)}</div>`;
+    } finally { this._cmpLoading = false; }
+  },
+
+  _renderComplaintPage() {
+    this._renderComplaintFilters();
+    this._renderComplaintList();
+  },
+
+  _renderComplaintFilters() {
+    const f = this.cmpFilter;
+    const rl = document.getElementById('cmpRangeLabel');
+    if (!f.from && !f.to) rl.textContent = this.t('all');
+    else if (f.from && f.to) rl.textContent = this._formatDMY(f.from) + ' – ' + this._formatDMY(f.to);
+    else rl.textContent = this._formatDMY(f.from || f.to);
+
+    const stores = Array.from(new Set(this.complaints.map(c => c.store).filter(Boolean)))
+      .sort((a, b) => this._short(a).localeCompare(this._short(b)));
+    const storeOpts = { '': this.t('all') };
+    stores.forEach(b => { storeOpts[b] = this._short(b); });
+    if (f.store && !storeOpts[f.store]) storeOpts[f.store] = this._short(f.store);
+    this._initDropdown('cmpFStore', storeOpts, f.store, (v) => { f.store = v; this._renderComplaintList(); }, { search: true });
+
+    const mediaOpts = { '': this.t('all') };
+    CONFIG.COMPLAINT_MEDIA.forEach(m => { mediaOpts[m] = m; });
+    if (f.media && !mediaOpts[f.media]) mediaOpts[f.media] = f.media;
+    this._initDropdown('cmpFMedia', mediaOpts, f.media, (v) => { f.media = v; this._renderComplaintList(); });
+
+    const catOpts = { '': this.t('all') };
+    CONFIG.COMPLAINT_CATEGORIES.forEach(c => { catOpts[c] = c; });
+    if (f.category && !catOpts[f.category]) catOpts[f.category] = f.category;
+    this._initDropdown('cmpFCategory', catOpts, f.category, (v) => { f.category = v; this._renderComplaintList(); });
+  },
+
+  _filteredComplaints() {
+    const f = this.cmpFilter;
+    return this.complaints.filter(c => {
+      if (!this._inRange(c.trxDate, f.from, f.to)) return false;
+      if (f.store && c.store !== f.store) return false;
+      if (f.media && c.media !== f.media) return false;
+      if (f.category && c.category !== f.category) return false;
+      return true;
+    }).sort((a, b) => (b.trxDate || '').localeCompare(a.trxDate || ''));
+  },
+
+  _renderComplaintList() {
+    const rows = this._filteredComplaints();
+    document.getElementById('cmpCount').textContent = this.t('cmp_count', { n: rows.length });
+    const el = document.getElementById('cmpList');
+    if (rows.length === 0) {
+      el.innerHTML = `<div class="empty-note">${this._esc(this.t('cmp_none'))}</div>`;
+      return;
+    }
+    this._cmpVisible = rows;
+    el.innerHTML = rows.map((c, i) => `<div class="act-row cmp-row" data-i="${i}">
+      <div class="act-row-main">
+        <span class="act-date">${this._esc(this._formatDMY(c.trxDate))}</span>
+        <span class="act-name">${this._esc(c.name)}</span>
+        <span class="act-store">${this._esc(this._short(c.store))}</span>
+        <span class="act-tag act-tag-soft">${this._esc(c.category)}</span>
+      </div>
+      <div class="act-row-detail">${this._esc(c.media)}${c.body ? ' · ' + this._esc(c.body.slice(0, 90)) + (c.body.length > 90 ? '…' : '') : ''}</div>
+    </div>`).join('');
+    el.querySelectorAll('.cmp-row').forEach(row => {
+      row.addEventListener('click', () => this._openComplaintDetail(this._cmpVisible[Number(row.dataset.i)]));
+    });
+  },
+
+  _openComplaintDetail(c) {
+    if (!c) return;
+    document.getElementById('cmpDetailTitle').textContent = c.name || this.t('detail');
+    const rows = [
+      [this.t('cmp_name'), c.name],
+      [this.t('cmp_contact'), c.contact],
+      [this.t('cmp_address'), c.address],
+      [this.t('cmp_store'), this._short(c.store)],
+      [this.t('cmp_media'), c.media],
+      [this.t('cmp_category'), c.category],
+      [this.t('cmp_trx_date'), this._formatDMY(c.trxDate)],
+      [this.t('cmp_body'), c.body]
+    ];
+    document.getElementById('cmpDetailBody').innerHTML = '<div class="detail-list">' + rows.map(([k, v]) =>
+      `<div class="detail-row detail-row-stack">
+        <div class="detail-label">${this._esc(k)}</div>
+        <div class="detail-text">${this._esc(v || '—')}</div>
+      </div>`).join('') + '</div>';
+    document.getElementById('cmpDetailModal').hidden = false;
+  },
+
+  _openComplaintForm() {
+    const L = CONFIG.COMPLAINT_LIMITS;
+    this._cmpDraft = { store: '', media: '', category: '' };
+    ['cmpFormName', 'cmpFormContact', 'cmpFormAddress', 'cmpFormBody'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('cmpFormName').maxLength = L.nama;
+    document.getElementById('cmpFormContact').maxLength = L.kontak;
+    document.getElementById('cmpFormAddress').maxLength = L.alamat;
+    document.getElementById('cmpFormBody').maxLength = L.isi;
+    document.getElementById('cmpFormDate').value = this._toDateStr(new Date());
+    this._formErr('cmpFormError', '');
+
+    const clearErr = () => this._formErr('cmpFormError', '');
+    this._initDropdown('cmpFormStore', this._storeOptions(false), '', (v) => {
+      this._cmpDraft.store = v; clearErr();
+    }, { search: true, placeholder: this.t('cmp_store') });
+    const mediaOpts = {};
+    CONFIG.COMPLAINT_MEDIA.forEach(m => { mediaOpts[m] = m; });
+    this._initDropdown('cmpFormMedia', mediaOpts, '', (v) => { this._cmpDraft.media = v; clearErr(); }, { placeholder: this.t('cmp_pick_media') });
+    const catOpts = {};
+    CONFIG.COMPLAINT_CATEGORIES.forEach(c => { catOpts[c] = c; });
+    this._initDropdown('cmpFormCategory', catOpts, '', (v) => { this._cmpDraft.category = v; clearErr(); }, { placeholder: this.t('cmp_pick_category') });
+    ['cmpFormName', 'cmpFormContact', 'cmpFormAddress', 'cmpFormDate', 'cmpFormBody'].forEach(id => {
+      document.getElementById(id).oninput = clearErr;
+    });
+
+    const save = document.getElementById('cmpFormSave');
+    save.disabled = false; save.textContent = this.t('save');
+    document.getElementById('cmpFormModal').hidden = false;
+  },
+
+  async _saveComplaint() {
+    const d = this._cmpDraft;
+    const row = {
+      name:     document.getElementById('cmpFormName').value.trim(),
+      contact:  document.getElementById('cmpFormContact').value.trim(),
+      address:  document.getElementById('cmpFormAddress').value.trim(),
+      store:    d.store,
+      media:    d.media,
+      category: d.category,
+      trxDate:  document.getElementById('cmpFormDate').value,
+      body:     document.getElementById('cmpFormBody').value.trim()
+    };
+    if (!row.name)     return this._formErr('cmpFormError', this.t('cmp_err_name'));
+    if (!row.store)    return this._formErr('cmpFormError', this.t('cmp_err_store'));
+    if (!row.media)    return this._formErr('cmpFormError', this.t('cmp_err_media'));
+    if (!row.category) return this._formErr('cmpFormError', this.t('cmp_err_category'));
+    if (!row.trxDate)  return this._formErr('cmpFormError', this.t('cmp_err_date'));
+    if (!row.body)     return this._formErr('cmpFormError', this.t('cmp_err_body'));
+    this._formErr('cmpFormError', '');
+    const btn = document.getElementById('cmpFormSave');
+    btn.disabled = true; btn.textContent = this.t('saving');
+    try {
+      await Sheets.addComplaint(row);
+      this.complaints = this.complaints.concat([row]);
+      Sheets.saveList(Sheets.CACHE_KEY_COMPLAINT, this.complaints);
+      document.getElementById('cmpFormModal').hidden = true;
+      this._toast(this.t('cmp_saved'));
+      this._renderComplaintPage();
+      this.loadComplaints(false, true);
+    } catch (e) {
+      this._formErr('cmpFormError', this.t('cmp_save_failed') + ': ' + e.message);
+      btn.disabled = false; btn.textContent = this.t('save');
     }
   },
 
