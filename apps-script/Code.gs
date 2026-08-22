@@ -56,7 +56,6 @@ function doPost(e) {
     if (b.action === 'upload')         return { status: 'ok', data: _upload(b.rows || []) };
     if (b.action === 'addKegiatan')    return { status: 'ok', data: _addKegiatan(b.row || {}) };
     if (b.action === 'addKomplain')    return { status: 'ok', data: _addKomplain(b.row || {}) };
-    if (b.action === 'checkDuplicateKomplain') return { status: 'ok', data: _checkDuplicateKomplain(b.keys || []) };
     if (b.action === 'uploadKomplain') return { status: 'ok', data: _uploadKomplain(b.rows || []) };
     throw new Error('Unknown action: ' + b.action);
   });
@@ -331,13 +330,6 @@ function _komplainExistingKeys() {
     set[_komplainKey(row)] = true;
   }
   return set;
-}
-
-function _checkDuplicateKomplain(keys) {
-  const existing = _komplainExistingKeys();
-  let duplicates = 0;
-  keys.forEach(k => { if (existing[k]) duplicates++; });
-  return { totalInFile: keys.length, duplicates: duplicates, newOnes: keys.length - duplicates };
 }
 
 function _uploadKomplain(rows) {

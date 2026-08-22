@@ -1484,13 +1484,7 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
 }
 .acal-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
 
-/* Upload: keterangan jenis file yang didukung + hasil deteksi */
-.upload-supported {
-  font-size: 11px;
-  color: var(--ink-3);
-  margin-top: 10px;
-  line-height: 1.5;
-}
+/* Upload: hasil deteksi jenis file */
 .file-preview-kind {
   font-size: 11px;
   font-weight: 500;
@@ -1504,4 +1498,14 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
   border-radius: 6px;
   padding: 6px 8px;
   margin-top: 8px;
+}
+
+/* Petunjuk tambahan di dalam kotak error (mis. Apps Script belum di-deploy) */
+.error-box-hint {
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 0.5px solid var(--line-2);
+  line-height: 1.5;
 }

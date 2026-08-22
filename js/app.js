@@ -1234,8 +1234,9 @@ const App = {
         const f = document.getElementById('upFill'); if (f) f.style.width = pct + '%';
       });
       const isComplaint = parsed.kind === 'komplain';
-      const dup = isComplaint
-        ? await Sheets.checkDuplicateComplaints(parsed.rows.map(r => r.dedupKey))
+      // Komplain: tidak perlu tanya duplikat dulu. Semua baris dikirim, server
+      // yang melewati baris yang sudah ada, supaya data lain tetap masuk.
+      const dup = isComplaint ? null
         : await Sheets.checkDuplicate(parsed.rows.map(r => ({ date: r.date, branch: r.branch })));
       this._uploadCtx = { parsed, dup };
       const meta = parsed.meta;
@@ -1258,6 +1259,15 @@ const App = {
         ${meta.skipped ? `<div class="file-preview-warn">${this._esc(this.t('upload_skipped_rows', { n: meta.skipped }))}</div>` : ''}
       </div>`;
       res.hidden = false;
+      if (isComplaint) {
+        res.innerHTML = `<div class="info-box"><b>${this._esc(this.t('upload_ready_complaint', { n: meta.rowCount.toLocaleString(this._locale()) }))}</b></div>`;
+        actions.hidden = false;
+        actions.innerHTML = `<button class="btn" id="uCancel">${this._esc(this.t('cancel'))}</button><button class="btn btn-primary" id="btnUploadInner">${this._esc(this.t('upload_all'))}</button>`;
+        document.getElementById('btnUploadInner').onclick = () => this._doUpload(false);
+        const cc = document.getElementById('uCancel');
+        if (cc) cc.onclick = () => this._resetUploadUi();
+        return;
+      }
       if (dup.duplicates === 0) {
         res.innerHTML = `<div class="info-box"><b>${this._esc(this.t('upload_all_new_msg', { n: dup.newOnes.toLocaleString(this._locale()) }))}</b></div>`;
         actions.hidden = false;
@@ -1277,8 +1287,18 @@ const App = {
     } catch (e) {
       preview.hidden = true;
       err.hidden = false;
-      err.innerHTML = `<div class="error-box"><div class="error-box-icon">!</div><div><div class="error-box-title">${this._esc(this.t('upload_fail_process'))}</div><div class="error-box-msg">${this._esc(e.message)}</div></div></div>`;
+      err.innerHTML = this._errorBox(this.t('upload_fail_process'), e.message);
     }
+  },
+
+  // "Unknown action: xxx" = Apps Script masih versi lama -> beri petunjuk jelas
+  _errorBox(title, msg) {
+    const stale = /unknown action/i.test(String(msg || ''));
+    return `<div class="error-box"><div class="error-box-icon">!</div><div>
+      <div class="error-box-title">${this._esc(title)}</div>
+      <div class="error-box-msg">${this._esc(msg)}</div>
+      ${stale ? `<div class="error-box-hint">${this._esc(this.t('upload_redeploy_hint'))}</div>` : ''}
+    </div></div>`;
   },
   async _doUpload(filterDupes) {
     if (!this._uploadCtx) return;
@@ -1301,14 +1321,23 @@ const App = {
       // Komplain: server yang menyaring duplikat (pakai Case Id / kombinasi kolom),
       // jadi "upload semua" vs "upload yang baru" sama-sama aman.
       const CHUNK = isComplaint ? 200 : 500;
-      let added = 0;
+      let added = 0, skippedDup = 0;
       for (let i = 0; i < rows.length; i += CHUNK) {
         const slice = rows.slice(i, i + CHUNK);
         setStatus(this.t('upload_progress', { a: Math.min(i + CHUNK, rows.length).toLocaleString(this._locale()), b: rows.length.toLocaleString(this._locale()) }), 10 + Math.round(i / rows.length * 85));
         const res = isComplaint ? await Sheets.uploadComplaints(slice) : await Sheets.upload(slice);
         added += (res && res.added) || 0;
+        skippedDup += (res && res.skipped) || 0;
       }
-      setStatus(this.t('upload_done', { n: (isComplaint ? added : rows.length).toLocaleString(this._locale()) }), 100);
+      if (isComplaint) {
+        const parts = [];
+        if (added > 0) parts.push(this.t('upload_done_complaint', { n: added.toLocaleString(this._locale()) }));
+        else parts.push(this.t('upload_none_added'));
+        if (skippedDup > 0) parts.push(this.t('upload_dup_skipped', { n: skippedDup.toLocaleString(this._locale()) }));
+        setStatus(parts.join(' '), 100);
+      } else {
+        setStatus(this.t('upload_done', { n: rows.length.toLocaleString(this._locale()) }), 100);
+      }
       this._toast(this.t('upload_success'));
       Sheets.clearCache();
       setTimeout(() => this._resetUploadUi(), 1200);
@@ -1317,7 +1346,7 @@ const App = {
     } catch (e) {
       const err = document.getElementById('uploadError');
       err.hidden = false;
-      err.innerHTML = `<div class="error-box"><div class="error-box-icon">!</div><div><div class="error-box-title">${this._esc(this.t('upload_fail_title'))}</div><div class="error-box-msg">${this._esc(e.message)}</div></div></div>`;
+      err.innerHTML = this._errorBox(this.t('upload_fail_title'), e.message);
       actions.querySelectorAll('button').forEach(b => b.disabled = false);
     }
   },
