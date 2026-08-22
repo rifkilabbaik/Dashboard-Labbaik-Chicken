@@ -39,8 +39,11 @@ sales-dashboard/
 
 > **Penting untuk versi ini:** Apps Script harus di-deploy ulang, karena ada
 > action baru (`fetchKegiatan`, `fetchKomplain`, `addKegiatan`, `addKomplain`,
-> `checkDuplicateKomplain`, `uploadKomplain`).
-> Sheet `Kegiatan` dibuat otomatis saat kegiatan pertama disimpan.
+> `uploadKomplain`). Sheet `Kegiatan` dibuat otomatis saat kegiatan pertama disimpan.
+>
+> Kalau muncul error **"Unknown action: ..."**, artinya `Code.gs` yang ter-deploy
+> masih versi lama — aplikasi akan menampilkan petunjuk deploy-nya langsung di
+> kotak error.
 
 ### 1. Update Apps Script
 
@@ -101,10 +104,19 @@ Area Manager | Regional Manager
 > dan urutan kolom di sheet tidak harus sama dengan di file — pencocokan pakai
 > nama header.
 
-**Anti-duplikat.** Baris dianggap sama kalau `Case Id`-nya sama. Kalau `Case Id`
-kosong (mis. data dari form manual), yang dibandingkan adalah kombinasi
+**Anti-duplikat.** Upload komplain **tidak menanyakan apa-apa soal duplikat** —
+semua baris dikirim, lalu baris yang sudah ada **dilewati otomatis** supaya sisa
+datanya tetap masuk. Setelah selesai muncul laporan, mis.
+`213 komplain ditambahkan. 1 duplikat dilewati.`
+
+Baris dianggap sama kalau `Case Id`-nya sama. Kalau `Case Id` kosong (mis. data
+dari form manual), yang dibandingkan adalah kombinasi
 `Nama + Nama Store + Tanggal Transaksi + Isi Komplain` (tidak peduli huruf besar/kecil
 dan spasi berlebih). Upload file yang sama dua kali **tidak** menambah baris.
+
+> Upload **penjualan** tetap seperti sebelumnya (ditanya dulu mau upload semua
+> atau hanya yang baru), karena di sana satu baris = satu hari per toko dan
+> menimpa/menduplikasi angka penjualan efeknya lebih besar.
 
 **Baris yang dilewati.** Baris tanpa Nama / Nama Store / Tanggal Transaksi / Isi
 Komplain, atau yang tanggalnya tidak valid, dilewati — jumlahnya dilaporkan di
@@ -215,6 +227,12 @@ deployments → Version: New version → Deploy.
 **Muncul "Gagal: view is not defined"**
 Versi lama `js/app.js`. Update file di GitHub, lalu hard refresh (Ctrl+Shift+R)
 supaya service worker versi baru terambil.
+
+**Upload komplain: "Unknown action: uploadKomplain"**
+`Code.gs` yang ter-deploy masih versi lama. Copy ulang seluruh isi
+`apps-script/Code.gs` ke editor Apps Script, Save, lalu Deploy → Manage
+deployments → Version: **New version** → Deploy. Meng-update file di GitHub saja
+tidak cukup — Apps Script tidak tersambung ke repo.
 
 **Upload komplain: "Format file tidak dikenali"**
 Baris header file harus punya kolom `Nama Store` dan `Media Komplain` (dicari di
