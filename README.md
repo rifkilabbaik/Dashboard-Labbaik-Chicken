@@ -10,9 +10,17 @@ Progressive Web App (PWA) untuk memantau penjualan multi-branch dengan Google Sh
 - Metrik: total penjualan + grup Offline/Online/Catering, penjualan Regional & Area
 - Grafik tren: **Harian = garis, Mingguan & Bulanan = bar chart**. Ketuk grafik untuk
   popup perbandingan (Harian/Mingguan vs bulan lalu, Bulanan vs **tahun lalu**)
-- Top & Low 10 toko
-- **Kegiatan** — catat kegiatan FLD / GCOM / CX, kalender kegiatan, filter & daftar
-- **Komplain** — input manual + **upload file .xlsx** langsung ke sheet `Komplain`
+- Top & Low 10 toko + **10 toko dengan komplain tertinggi** (periode sama dengan penjualan)
+- **Penjualan Toko**: filter Regional, Area, dan **filter toko multi-pilih**
+- Pop up detail toko/area/regional dilengkapi **grafik Harian / Mingguan / Tahunan**
+- **Kegiatan** — catat kegiatan FLD / GCOM / CX, **kalender tampil langsung** di halaman,
+  daftar kegiatan mengikuti periode penjualan, filter (periode + nama, toko, kegiatan)
+  ada di tombol filter kanan atas
+- **Komplain** — input manual + **upload file .xlsx** langsung ke sheet `Komplain`,
+  rekap **komplain semua toko per kategori** (urut Nama / Terbanyak / Tersedikit),
+  filter (periode + nama toko, kategori) ada di tombol filter kanan atas
+- Nama toko data komplain & kegiatan (mis. `LC Cipasir`) otomatis diselaraskan dengan
+  nama toko data penjualan (`Labbaik Chicken - Cipasir`) — lihat `STORE_ALIASES` di `js/config.js`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text
 - Installable sebagai PWA
 - Filter otomatis menyaring toko aktif dari sheet Regional
@@ -56,7 +64,7 @@ sales-dashboard/
 
 Upload/replace file-file ini di repo:
 - `index.html`
-- `service-worker.js` (versi bump ke v3)
+- `service-worker.js` (versi cache dinaikkan setiap rilis)
 - `css/style.css`
 - `js/config.js`
 - `js/sheets.js`
