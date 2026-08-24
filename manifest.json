@@ -1,12 +1,12 @@
 {
-  "name": "Sales Dashboard",
-  "short_name": "Sales",
-  "description": "Dashboard sales dengan sinkronisasi Google Sheets",
+  "name": "Rekapin",
+  "short_name": "Rekapin",
+  "description": "Rekap penjualan, kegiatan & komplain multi-toko",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#F7F4EC",
+  "background_color": "#FFFFFF",
   "theme_color": "#F7F4EC",
   "icons": [
     {

@@ -110,6 +110,10 @@ const App = {
     if (!CONFIG.FONT_OPTIONS[this.fontFamily]) this.fontFamily = 'default';
     this.lang = localStorage.getItem('lang') || 'id';
     if (!CONFIG.I18N[this.lang]) this.lang = 'id';
+    // Menu: terbuka (ikon + label) atau tertutup (rail ikon saja).
+    // Default: terbuka di layar lebar, tertutup di HP.
+    const savedNav = localStorage.getItem('navOpen');
+    this.navOpen = savedNav === null ? window.innerWidth >= 900 : savedNav === '1';
     this.regionalSort = localStorage.getItem('regionalSort') || 'name';
     this.areaSort = localStorage.getItem('areaSort') || 'name';
     this.trendView = localStorage.getItem('trendView') || 'daily';
@@ -162,6 +166,11 @@ const App = {
     document.querySelectorAll('[data-i18n]').forEach(el => {
       el.textContent = this.t(el.dataset.i18n);
     });
+    // Saat menu ditutup hanya ikon yang terlihat -> pakai tooltip sebagai nama menu
+    document.querySelectorAll('.sidebar-item').forEach(btn => {
+      const label = btn.querySelector('span');
+      if (label) { btn.title = label.textContent; btn.setAttribute('aria-label', label.textContent); }
+    });
   },
 
   // ==========================================================================
@@ -186,13 +195,24 @@ const App = {
   _bindSidebar() {
     const sb = document.getElementById('sidebar');
     const bd = document.getElementById('sidebarBackdrop');
-    const open = () => { sb.classList.add('open'); bd.classList.add('open'); };
-    const close = () => { sb.classList.remove('open'); bd.classList.remove('open'); };
-    this._on('btnMenu', 'click', open);
-    this._on('sidebarClose', 'click', close);
-    bd.addEventListener('click', close);
+    if (!sb) return;
+    const setNav = (open) => {
+      this.navOpen = open;
+      sb.classList.toggle('open', open);
+      if (bd) bd.classList.toggle('open', open);
+      document.body.classList.toggle('nav-open', open);
+      this._save('navOpen', open ? '1' : '0');
+    };
+    setNav(this.navOpen);
+    this._on('btnMenu', 'click', () => setNav(!this.navOpen));
+    this._on('sidebarClose', 'click', () => setNav(false));
+    if (bd) bd.addEventListener('click', () => setNav(false));
     document.querySelectorAll('.sidebar-item').forEach(btn => {
-      btn.addEventListener('click', () => { this._goToPage(btn.dataset.page); close(); });
+      btn.addEventListener('click', () => {
+        this._goToPage(btn.dataset.page);
+        // Di layar sempit menu menimpa konten, jadi ditutup lagi setelah memilih
+        if (window.innerWidth < 900) setNav(false);
+      });
     });
   },
   _goToPage(page) {
