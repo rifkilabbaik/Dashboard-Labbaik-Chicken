@@ -26,8 +26,11 @@ Progressive Web App (PWA) untuk merekap penjualan, kegiatan, dan komplain multi-
 - Nama toko data komplain & kegiatan (mis. `LC Cipasir`) otomatis diselaraskan dengan
   nama toko data penjualan (`Labbaik Chicken - Cipasir`) — lihat `STORE_ALIASES` di `js/config.js`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text
-- Menu samping selalu terlihat: **ditutup = rail ikon**, **dibuka = ikon + nama menu**
-  (pakai tombol hamburger; posisinya diingat aplikasi)
+- Menu samping menyesuaikan layar:
+  - **Layar lebar**: selalu menempel — ditutup jadi rail ikon, dibuka jadi ikon +
+    nama menu dan mendorong konten. Posisinya diingat aplikasi.
+  - **HP**: menu berupa laci yang muncul saat hamburger ditekan, jadi lebar layar
+    sepenuhnya dipakai data. Logo pindah ke bar atas.
 - Installable sebagai PWA
 - Filter otomatis menyaring toko aktif dari sheet Regional
 

@@ -196,23 +196,33 @@ const App = {
     const sb = document.getElementById('sidebar');
     const bd = document.getElementById('sidebarBackdrop');
     if (!sb) return;
+    // Di HP sidebar berupa laci (tidak memakan lebar layar), di layar lebar
+    // berupa rail yang bisa dilebarkan.
+    const isNarrow = () => window.innerWidth < 900;
     const setNav = (open) => {
       this.navOpen = open;
       sb.classList.toggle('open', open);
       if (bd) bd.classList.toggle('open', open);
       document.body.classList.toggle('nav-open', open);
-      this._save('navOpen', open ? '1' : '0');
+      // Buka/tutup laci di HP tidak disimpan, supaya pilihan di layar lebar
+      // (rail terbuka / tertutup) tidak ikut berubah.
+      if (!isNarrow()) this._save('navOpen', open ? '1' : '0');
     };
-    setNav(this.navOpen);
+    // Di HP selalu mulai tertutup
+    setNav(isNarrow() ? false : this.navOpen);
     this._on('btnMenu', 'click', () => setNav(!this.navOpen));
     this._on('sidebarClose', 'click', () => setNav(false));
     if (bd) bd.addEventListener('click', () => setNav(false));
     document.querySelectorAll('.sidebar-item').forEach(btn => {
       btn.addEventListener('click', () => {
         this._goToPage(btn.dataset.page);
-        // Di layar sempit menu menimpa konten, jadi ditutup lagi setelah memilih
-        if (window.innerWidth < 900) setNav(false);
+        // Laci menutup lagi setelah memilih menu
+        if (isNarrow()) setNav(false);
       });
+    });
+    // Ganti orientasi / ubah ukuran jendela: jangan tinggalkan laci terbuka
+    window.addEventListener('resize', () => {
+      if (isNarrow() && this.navOpen) setNav(false);
     });
   },
   _goToPage(page) {

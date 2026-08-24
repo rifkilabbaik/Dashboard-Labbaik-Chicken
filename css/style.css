@@ -41,10 +41,14 @@ body {
   padding-left: var(--rail-w);
   transition: padding-left 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Layar lebar: menu terbuka mendorong konten. Layar sempit: menu menimpa
-   konten (pakai backdrop) supaya isi halaman tidak terlalu terjepit. */
+/* Layar lebar: menu selalu menempel (rail ikon), terbuka mendorong konten. */
 @media (min-width: 900px) {
   body.nav-open { padding-left: var(--nav-w); }
+}
+/* Layar HP: rail dihilangkan supaya data tidak jadi sempit. Menu kembali
+   berupa laci yang muncul saat hamburger ditekan, logo pindah ke topbar. */
+@media (max-width: 899px) {
+  body { padding-left: 0; }
 }
 
 button, input, select, textarea { font-family: inherit; }
@@ -126,6 +130,14 @@ a:hover { text-decoration: underline; }
 .icon-btn-square:hover { background: var(--line); }
 .icon-btn-square svg { display: block; }
 
+.topbar-logo {
+  width: 26px;
+  height: 26px;
+  display: block;
+  flex-shrink: 0;
+}
+/* Di layar lebar logo sudah tampil di sidebar, jadi tidak perlu dobel */
+@media (min-width: 900px) { .topbar-logo { display: none; } }
 .topbar-title {
   flex: 1;
   font-size: 15px;
@@ -256,6 +268,27 @@ a:hover { text-decoration: underline; }
 .sidebar-footer {
   padding: 12px 16px;
   border-top: 0.5px solid var(--line);
+}
+
+/* ---- HP: sidebar jadi laci geser, bukan rail permanen ---- */
+@media (max-width: 899px) {
+  .sidebar {
+    width: var(--nav-w);
+    max-width: 84vw;
+    transform: translateX(-100%);
+    transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: none;
+    box-shadow: 4px 0 24px rgba(31, 41, 55, 0.10);
+  }
+  .sidebar.open { transform: translateX(0); }
+  /* Di laci, nama menu selalu tampil (termasuk saat animasi menutup) */
+  .sidebar:not(.open) .sidebar-brand { display: block; }
+  .sidebar:not(.open) .sidebar-item span { display: inline; }
+  .sidebar:not(.open) .sidebar-item {
+    justify-content: flex-start;
+    padding-left: 11px;
+    padding-right: 11px;
+  }
 }
 
 /* ===== CONTAINER & PAGES ===== */
