@@ -10,7 +10,7 @@
 // Jadi aplikasi tidak pernah "nyangkut" di versi lama, tapi tetap bisa dibuka
 // tanpa internet.
 // ============================================================================
-const CACHE_NAME = 'rekapin-v18';
+const CACHE_NAME = 'rekapin-v19';
 const APP_SHELL = [
   './',
   './index.html',
