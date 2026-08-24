@@ -503,8 +503,21 @@
   <script src="js/app.js"></script>
 
   <script>
+    // Kalau service worker versi baru mengambil alih, halaman di-refresh sekali
+    // supaya HTML/CSS/JS yang dipakai tidak campur versi lama & baru.
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(() => {}));
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => reg.update())
+          .catch(() => {});
+      });
     }
   </script>
 </body>

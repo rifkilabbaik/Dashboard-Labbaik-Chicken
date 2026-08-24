@@ -354,6 +354,7 @@ const CONFIG = {
 
       // Tabel komplain per toko
       cmp_per_store: 'Komplain per toko', cmp_other_cat: 'Lainnya',
+      tbl_scroll_hint: 'Geser tabel ke samping untuk melihat semua kolom',
       cmp_store_title: 'Komplain {store}',
       sort_most: 'Terbanyak ▾', sort_least: 'Tersedikit ▾',
 
@@ -481,6 +482,7 @@ const CONFIG = {
       trend_yearly: 'Yearly',
 
       cmp_per_store: 'Complaints per store', cmp_other_cat: 'Other',
+      tbl_scroll_hint: 'Swipe the table sideways to see all columns',
       cmp_store_title: 'Complaints · {store}',
       sort_most: 'Most ▾', sort_least: 'Fewest ▾',
 

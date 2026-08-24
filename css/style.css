@@ -1606,3 +1606,29 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
   gap: 6px;
   flex-shrink: 0;
 }
+
+/* ============================================================================
+   Tabel lebar di layar HP
+   ============================================================================ */
+
+/* Kolom nama ikut menempel saat tabel digeser ke samping, supaya baris
+   yang sedang dilihat tetap jelas milik toko/area/regional yang mana. */
+.stbl th:first-child,
+.stbl td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bone-2);
+  border-right: 0.5px solid var(--line);
+}
+.stbl th:first-child { background: var(--bone); z-index: 3; }
+.stbl tbody tr:hover td:first-child { background: var(--bone); }
+
+/* Petunjuk geser — hanya perlu saat layar sempit */
+.stbl-hint {
+  font-size: 10px;
+  color: var(--ink-3);
+  text-align: center;
+  margin-top: 8px;
+}
+@media (min-width: 720px) { .stbl-hint { display: none; } }

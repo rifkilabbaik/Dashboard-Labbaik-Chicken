@@ -60,16 +60,21 @@ const App = {
     this._applyPalette();
     this._applyFont();
     this._applyI18nStatic();
-    this._bindSidebar();
-    this._bindTopbar();
-    this._bindFilterModal();
-    this._bindDashboardEvents();
-    this._bindSalesPage();
-    this._bindActivityPage();
-    this._bindComplaintPage();
-    this._bindSettingsPage();
-    this._bindUploadPage();
-    this._bindModals();
+    // Tiap bagian dibungkus _safe supaya satu elemen yang hilang (mis. saat
+    // versi HTML & JS sempat campur di cache HP) tidak menggagalkan init()
+    // dan membuat seluruh halaman kosong.
+    [
+      ['sidebar',   () => this._bindSidebar()],
+      ['topbar',    () => this._bindTopbar()],
+      ['filter',    () => this._bindFilterModal()],
+      ['dashboard', () => this._bindDashboardEvents()],
+      ['sales',     () => this._bindSalesPage()],
+      ['activity',  () => this._bindActivityPage()],
+      ['complaint', () => this._bindComplaintPage()],
+      ['settings',  () => this._bindSettingsPage()],
+      ['upload',    () => this._bindUploadPage()],
+      ['modals',    () => this._bindModals()]
+    ].forEach(([name, fn]) => this._safe('bind:' + name, fn));
 
     const cached = Sheets.loadCache();
     if (cached && cached.data && cached.data.length > 0) {
@@ -122,6 +127,21 @@ const App = {
   },
   _save(k, v) { localStorage.setItem(k, v); },
 
+  // Isi teks dengan aman (elemen boleh tidak ada)
+  _setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  },
+
+  // Pasang listener dengan aman: kalau elemennya tidak ada (versi HTML lama
+  // tertinggal di cache), tombol lain tetap berfungsi.
+  _on(id, event, handler) {
+    const el = document.getElementById(id);
+    if (!el) { console.warn('Elemen tidak ditemukan: #' + id); return null; }
+    el.addEventListener(event, handler);
+    return el;
+  },
+
   // ==========================================================================
   // i18n
   // ==========================================================================
@@ -168,8 +188,8 @@ const App = {
     const bd = document.getElementById('sidebarBackdrop');
     const open = () => { sb.classList.add('open'); bd.classList.add('open'); };
     const close = () => { sb.classList.remove('open'); bd.classList.remove('open'); };
-    document.getElementById('btnMenu').addEventListener('click', open);
-    document.getElementById('sidebarClose').addEventListener('click', close);
+    this._on('btnMenu', 'click', open);
+    this._on('sidebarClose', 'click', close);
     bd.addEventListener('click', close);
     document.querySelectorAll('.sidebar-item').forEach(btn => {
       btn.addEventListener('click', () => { this._goToPage(btn.dataset.page); close(); });
@@ -198,7 +218,7 @@ const App = {
     return titleMap[page] || '';
   },
   _bindTopbar() {
-    document.getElementById('btnFilter').addEventListener('click', () => this._openFilterModal());
+    this._on('btnFilter', 'click', () => this._openFilterModal());
   },
 
   // ==========================================================================
@@ -208,9 +228,9 @@ const App = {
     const modal = document.getElementById('filterModal');
     // Backdrop close (no X, only OK & Batal/Reset)
     modal.querySelector('[data-close-modal]').addEventListener('click', () => modal.hidden = true);
-    document.getElementById('filterOk').addEventListener('click', () => this._applyFilter());
-    document.getElementById('filterCancelReset').addEventListener('click', () => this._filterCancelOrReset());
-    document.getElementById('fRangeTrigger').addEventListener('click', () => this._openRangePicker());
+    this._on('filterOk', 'click', () => this._applyFilter());
+    this._on('filterCancelReset', 'click', () => this._filterCancelOrReset());
+    this._on('fRangeTrigger', 'click', () => this._openRangePicker());
   },
   _openFilterModal() {
     document.getElementById('fFrom').value = this.applied ? this.applied.from : this.filter.from;
@@ -571,13 +591,13 @@ const App = {
   // DASHBOARD
   // ==========================================================================
   _bindDashboardEvents() {
-    document.getElementById('mcTotal').addEventListener('click', () => this._openTotalDetail());
-    document.getElementById('sortRegional').addEventListener('click', () => {
+    this._on('mcTotal', 'click', () => this._openTotalDetail());
+    this._on('sortRegional', 'click', () => {
       this.regionalSort = this._nextSort(this.regionalSort);
       this._save('regionalSort', this.regionalSort);
       this._renderRegionalList();
     });
-    document.getElementById('sortArea').addEventListener('click', () => {
+    this._on('sortArea', 'click', () => {
       this.areaSort = this._nextSort(this.areaSort);
       this._save('areaSort', this.areaSort);
       this._renderAreaList();
@@ -591,7 +611,7 @@ const App = {
       });
     });
     // Click chart wrap → open compare modal
-    document.getElementById('dTrendWrap').addEventListener('click', () => this._openTrendCompare());
+    this._on('dTrendWrap', 'click', () => this._openTrendCompare());
   },
 
   _renderDashboard() {
@@ -1149,17 +1169,17 @@ const App = {
   // SALES PAGE (3 sections stacked)
   // ==========================================================================
   _bindSalesPage() {
-    document.getElementById('sortSalesRegional').addEventListener('click', () => {
+    this._on('sortSalesRegional', 'click', () => {
       this.salesRegionalSort = this._nextSort(this.salesRegionalSort);
       this._save('salesRegionalSort', this.salesRegionalSort);
       this._renderSalesRegional();
     });
-    document.getElementById('sortSalesArea').addEventListener('click', () => {
+    this._on('sortSalesArea', 'click', () => {
       this.salesAreaSort = this._nextSort(this.salesAreaSort);
       this._save('salesAreaSort', this.salesAreaSort);
       this._renderSalesArea();
     });
-    document.getElementById('sortSalesToko').addEventListener('click', () => {
+    this._on('sortSalesToko', 'click', () => {
       this.salesTokoSort = this._nextSort(this.salesTokoSort);
       this._save('salesTokoSort', this.salesTokoSort);
       this._renderSalesToko();
@@ -1171,7 +1191,7 @@ const App = {
       ['viewSalesArea',     'salesAreaView',     () => this._renderSalesArea()],
       ['viewSalesToko',     'salesTokoView',     () => this._renderSalesToko()]
     ].forEach(([btnId, key, render]) => {
-      document.getElementById(btnId).addEventListener('click', () => {
+      this._on(btnId, 'click', () => {
         this[key] = this[key] === 'simple' ? 'full' : 'simple';
         this._save(key, this[key]);
         render();
@@ -1191,13 +1211,13 @@ const App = {
     const rows = this._buildSalesRows('regional');
     this._sortAndRender(rows, this.salesRegionalSort, 'salesRegionalTable', 'regional', this.salesRegionalView);
     document.getElementById('sortSalesRegional').textContent = this._sortLabel(this.salesRegionalSort);
-    document.getElementById('viewSalesRegional').textContent = this._viewLabel(this.salesRegionalView);
+    this._setText('viewSalesRegional', this._viewLabel(this.salesRegionalView));
   },
   _renderSalesArea() {
     const rows = this._buildSalesRows('area');
     this._sortAndRender(rows, this.salesAreaSort, 'salesAreaTable', 'area', this.salesAreaView);
     document.getElementById('sortSalesArea').textContent = this._sortLabel(this.salesAreaSort);
-    document.getElementById('viewSalesArea').textContent = this._viewLabel(this.salesAreaView);
+    this._setText('viewSalesArea', this._viewLabel(this.salesAreaView));
   },
   _renderSalesToko() {
     const picked = this.tokoStores || [];
@@ -1211,7 +1231,7 @@ const App = {
     });
     this._sortAndRender(rows, this.salesTokoSort, 'salesTokoTable', 'branch', this.salesTokoView);
     document.getElementById('sortSalesToko').textContent = this._sortLabel(this.salesTokoSort);
-    document.getElementById('viewSalesToko').textContent = this._viewLabel(this.salesTokoView);
+    this._setText('viewSalesToko', this._viewLabel(this.salesTokoView));
   },
 
   _buildSalesRows(level) {
@@ -1356,13 +1376,13 @@ const App = {
     if (CONFIG.SHEET_URL && !CONFIG.SHEET_URL.startsWith('PASTE')) sl.href = CONFIG.SHEET_URL;
     else sl.parentElement.hidden = true;
 
-    document.getElementById('btnClearCache').addEventListener('click', async () => {
+    this._on('btnClearCache', 'click', async () => {
       Sheets.clearCache();
       if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
       if ('serviceWorker' in navigator) { const r = await navigator.serviceWorker.getRegistrations(); await Promise.all(r.map(x => x.unregister())); }
       this._toast(this.t('toast_cache_cleared'));
     });
-    document.getElementById('btnReload').addEventListener('click', () => this.loadAll());
+    this._on('btnReload', 'click', () => this.loadAll());
 
     // Build dropdowns
     this._buildSettingDropdowns();
@@ -1594,8 +1614,8 @@ const App = {
   // UPLOAD PAGE
   // ==========================================================================
   _bindUploadPage() {
-    document.getElementById('btnPickFile').addEventListener('click', () => document.getElementById('fileInput').click());
-    document.getElementById('fileInput').addEventListener('change', (e) => { if (e.target.files[0]) this._handleFile(e.target.files[0]); });
+    this._on('btnPickFile', 'click', () => document.getElementById('fileInput').click());
+    this._on('fileInput', 'change', (e) => { if (e.target.files[0]) this._handleFile(e.target.files[0]); });
     const dz = document.getElementById('dropzone');
     dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
@@ -1822,11 +1842,11 @@ const App = {
   // KEGIATAN — page
   // ==========================================================================
   _bindActivityPage() {
-    document.getElementById('btnActAdd').addEventListener('click', () => this._openActivityForm());
-    document.getElementById('actFormSave').addEventListener('click', () => this._saveActivity());
+    this._on('btnActAdd', 'click', () => this._openActivityForm());
+    this._on('actFormSave', 'click', () => this._saveActivity());
     document.querySelectorAll('#actFormModal [data-close-modal], #actDayModal [data-close-modal]')
       .forEach(el => el.addEventListener('click', () => { el.closest('.modal').hidden = true; }));
-    document.getElementById('btnActReload').addEventListener('click', () => this.loadActivities(false, true));
+    this._on('btnActReload', 'click', () => this.loadActivities(false, true));
   },
 
   async loadActivities(useCacheFirst, force) {
@@ -2108,16 +2128,16 @@ const App = {
   // KOMPLAIN
   // ==========================================================================
   _bindComplaintPage() {
-    document.getElementById('btnCmpAdd').addEventListener('click', () => this._openComplaintForm());
-    document.getElementById('sortCmpStore').addEventListener('click', () => {
+    this._on('btnCmpAdd', 'click', () => this._openComplaintForm());
+    this._on('sortCmpStore', 'click', () => {
       this.cmpStoreSort = this._nextSort(this.cmpStoreSort);
       this._save('cmpStoreSort', this.cmpStoreSort);
       this._renderComplaintStoreTable();
     });
-    document.getElementById('cmpFormSave').addEventListener('click', () => this._saveComplaint());
+    this._on('cmpFormSave', 'click', () => this._saveComplaint());
     document.querySelectorAll('#cmpFormModal [data-close-modal], #cmpDetailModal [data-close-modal]')
       .forEach(el => el.addEventListener('click', () => { el.closest('.modal').hidden = true; }));
-    document.getElementById('btnCmpReload').addEventListener('click', () => this.loadComplaints(false, true));
+    this._on('btnCmpReload', 'click', () => this.loadComplaints(false, true));
   },
 
   async loadComplaints(useCacheFirst, force) {
@@ -2239,6 +2259,8 @@ const App = {
       html += '</tr>';
     });
     html += '</tbody></table></div>';
+    // Di HP tabelnya lebih lebar dari layar — beri tahu supaya tidak dikira datanya hilang
+    html += `<div class="stbl-hint">${this._esc(this.t('tbl_scroll_hint'))}</div>`;
     container.innerHTML = html;
     container.querySelectorAll('.stbl-clickable').forEach(tr => {
       tr.addEventListener('click', () => this._openStoreComplaints(tr.dataset.store));
