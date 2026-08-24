@@ -11,14 +11,18 @@ Progressive Web App (PWA) untuk memantau penjualan multi-branch dengan Google Sh
 - Grafik tren: **Harian = garis, Mingguan & Bulanan = bar chart**. Ketuk grafik untuk
   popup perbandingan (Harian/Mingguan vs bulan lalu, Bulanan vs **tahun lalu**)
 - Top & Low 10 toko + **10 toko dengan komplain tertinggi** (periode sama dengan penjualan)
+- **Penjualan**: tiap tabel punya chip kolom **Simpel** (Offline/Online/Catering)
+  ⇄ **Penuh** (Dine In, Take Away, ShopeeFood, GoFood, GrabFood, Catering, dll —
+  channel yang nilainya nol tidak ditampilkan), di samping chip urutan
 - **Penjualan Toko**: filter Regional, Area, dan **filter toko multi-pilih**
 - Pop up detail toko/area/regional dilengkapi **grafik Harian / Mingguan / Tahunan**
 - **Kegiatan** — catat kegiatan FLD / GCOM / CX, **kalender tampil langsung** di halaman,
   daftar kegiatan mengikuti periode penjualan, filter (periode + nama, toko, kegiatan)
   ada di tombol filter kanan atas
 - **Komplain** — input manual + **upload file .xlsx** langsung ke sheet `Komplain`,
-  rekap **komplain semua toko per kategori** (urut Nama / Terbanyak / Tersedikit),
-  filter (periode + nama toko, kategori) ada di tombol filter kanan atas
+  halaman berisi rekap **komplain semua toko per kategori** (urut Nama / Terbanyak /
+  Tersedikit); klik barisnya untuk melihat daftar komplain toko tersebut.
+  Filter (periode + nama toko, kategori) ada di tombol filter kanan atas
 - Nama toko data komplain & kegiatan (mis. `LC Cipasir`) otomatis diselaraskan dengan
   nama toko data penjualan (`Labbaik Chicken - Cipasir`) — lihat `STORE_ALIASES` di `js/config.js`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text

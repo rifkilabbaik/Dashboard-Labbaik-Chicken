@@ -134,7 +134,10 @@
       <div class="panel">
         <div class="panel-head">
           <div class="panel-label" data-i18n="sales_regional">Penjualan Regional</div>
-          <button class="sort-chip" id="sortSalesRegional" data-mode="desc">Terbesar ▾</button>
+          <div class="panel-head-right">
+            <button class="sort-chip" id="viewSalesRegional" data-mode="simple">Simpel ▾</button>
+            <button class="sort-chip" id="sortSalesRegional" data-mode="desc">Terbesar ▾</button>
+          </div>
         </div>
         <div id="salesRegionalTable"></div>
       </div>
@@ -143,7 +146,10 @@
       <div class="panel">
         <div class="panel-head">
           <div class="panel-label" data-i18n="sales_area">Penjualan Area</div>
-          <button class="sort-chip" id="sortSalesArea" data-mode="desc">Terbesar ▾</button>
+          <div class="panel-head-right">
+            <button class="sort-chip" id="viewSalesArea" data-mode="simple">Simpel ▾</button>
+            <button class="sort-chip" id="sortSalesArea" data-mode="desc">Terbesar ▾</button>
+          </div>
         </div>
         <div id="salesAreaTable"></div>
       </div>
@@ -152,7 +158,10 @@
       <div class="panel">
         <div class="panel-head">
           <div class="panel-label" data-i18n="sales_store">Penjualan Toko</div>
-          <button class="sort-chip" id="sortSalesToko" data-mode="desc">Terbesar ▾</button>
+          <div class="panel-head-right">
+            <button class="sort-chip" id="viewSalesToko" data-mode="simple">Simpel ▾</button>
+            <button class="sort-chip" id="sortSalesToko" data-mode="desc">Terbesar ▾</button>
+          </div>
         </div>
         <div class="sub-filter-2col sub-filter-3col">
           <div>
@@ -211,17 +220,12 @@
       <div class="panel">
         <div class="panel-head">
           <div class="panel-label" data-i18n="cmp_per_store">Komplain per toko</div>
-          <button class="sort-chip" id="sortCmpStore" data-mode="desc">Terbanyak ▾</button>
+          <div class="panel-head-right">
+            <div class="panel-count" id="cmpCount">—</div>
+            <button class="sort-chip" id="sortCmpStore" data-mode="desc">Terbanyak ▾</button>
+          </div>
         </div>
         <div id="cmpStoreTable"></div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-label" data-i18n="cmp_list">Daftar komplain</div>
-          <div class="panel-count" id="cmpCount">—</div>
-        </div>
-        <div id="cmpList"></div>
         <button class="btn btn-block" id="btnCmpReload" style="margin-top:10px;" data-i18n="cmp_reload">Muat ulang komplain</button>
       </div>
     </section>

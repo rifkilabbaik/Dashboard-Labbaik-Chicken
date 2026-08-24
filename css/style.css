@@ -1598,3 +1598,11 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
 
 /* Kalender kegiatan inline: sedikit lebih lega dari versi modal */
 .page[data-page="activity"] .acal-cell { min-height: 52px; }
+
+/* Kelompok chip di kanan panel-head (jumlah, urutan, kolom) */
+.panel-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
