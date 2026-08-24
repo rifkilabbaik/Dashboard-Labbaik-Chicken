@@ -10,7 +10,7 @@
 // Jadi aplikasi tidak pernah "nyangkut" di versi lama, tapi tetap bisa dibuka
 // tanpa internet.
 // ============================================================================
-const CACHE_NAME = 'sales-dashboard-v17';
+const CACHE_NAME = 'rekapin-v18';
 const APP_SHELL = [
   './',
   './index.html',
@@ -20,6 +20,8 @@ const APP_SHELL = [
   './js/sheets.js',
   './js/upload.js',
   './js/app.js',
+  './icons/icon.svg',
+  './icons/logo.svg',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];

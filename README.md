@@ -1,6 +1,6 @@
-# Sales Dashboard
+# Rekapin
 
-Progressive Web App (PWA) untuk memantau penjualan multi-branch dengan Google Sheets sebagai database. Dashboard responsif untuk desktop dan mobile, dengan filter interaktif hingga level regional, area, dan channel.
+Progressive Web App (PWA) untuk merekap penjualan, kegiatan, dan komplain multi-toko dengan Google Sheets sebagai database. Dashboard responsif untuk desktop dan mobile, dengan filter interaktif hingga level regional, area, dan channel.
 
 ## Fitur
 
@@ -26,13 +26,15 @@ Progressive Web App (PWA) untuk memantau penjualan multi-branch dengan Google Sh
 - Nama toko data komplain & kegiatan (mis. `LC Cipasir`) otomatis diselaraskan dengan
   nama toko data penjualan (`Labbaik Chicken - Cipasir`) — lihat `STORE_ALIASES` di `js/config.js`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text
+- Menu samping selalu terlihat: **ditutup = rail ikon**, **dibuka = ikon + nama menu**
+  (pakai tombol hamburger; posisinya diingat aplikasi)
 - Installable sebagai PWA
 - Filter otomatis menyaring toko aktif dari sheet Regional
 
 ## Struktur Folder
 
 ```
-sales-dashboard/
+rekapin/
 ├── index.html
 ├── manifest.json
 ├── service-worker.js
@@ -213,9 +215,10 @@ Kedua panel bisa disetting:
 Pengaturan → pilih format. Tersimpan per device di browser.
 
 ### Refresh
-- Mobile: tarik dari atas
-- Desktop: klik "Sales Dashboard" di kiri atas
-- Otomatis: saat kembali ke tab
+- Penjualan: Pengaturan → **Muat ulang data**
+- Kegiatan / Komplain: tombol **Muat ulang** di bawah panelnya
+- Otomatis: data cache dipakai dulu saat aplikasi dibuka, lalu versi terbaru
+  diambil di belakang layar
 
 ## Troubleshooting
 
