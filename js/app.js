@@ -38,6 +38,10 @@ const App = {
   salesRegionalSort: 'desc',
   salesAreaSort:     'desc',
   salesTokoSort:     'desc',
+  // Mode kolom tabel: 'simple' = Offline/Online/Catering, 'full' = semua channel
+  salesRegionalView: 'simple',
+  salesAreaView:     'simple',
+  salesTokoView:     'simple',
   tokoRegional: '',
   tokoArea: '',
   tokoStores: [],            // multi-pilih toko (kosong = semua)
@@ -109,6 +113,10 @@ const App = {
     this.salesAreaSort     = localStorage.getItem('salesAreaSort')     || 'desc';
     this.salesTokoSort     = localStorage.getItem('salesTokoSort')     || 'desc';
     this.cmpStoreSort      = localStorage.getItem('cmpStoreSort')      || 'desc';
+    ['salesRegionalView', 'salesAreaView', 'salesTokoView'].forEach(k => {
+      this[k] = localStorage.getItem(k) || 'simple';
+      if (!['simple','full'].includes(this[k])) this[k] = 'simple';
+    });
     this.detailTrendView   = localStorage.getItem('detailTrendView')   || 'daily';
     if (!['daily','weekly','yearly'].includes(this.detailTrendView)) this.detailTrendView = 'daily';
   },
@@ -1156,7 +1164,21 @@ const App = {
       this._save('salesTokoSort', this.salesTokoSort);
       this._renderSalesToko();
     });
+
+    // Chip kolom: Simpel (grup Offline/Online/Catering) <-> Penuh (semua channel)
+    [
+      ['viewSalesRegional', 'salesRegionalView', () => this._renderSalesRegional()],
+      ['viewSalesArea',     'salesAreaView',     () => this._renderSalesArea()],
+      ['viewSalesToko',     'salesTokoView',     () => this._renderSalesToko()]
+    ].forEach(([btnId, key, render]) => {
+      document.getElementById(btnId).addEventListener('click', () => {
+        this[key] = this[key] === 'simple' ? 'full' : 'simple';
+        this._save(key, this[key]);
+        render();
+      });
+    });
   },
+  _viewLabel(mode) { return mode === 'full' ? this.t('view_full') : this.t('view_simple'); },
 
   _renderSales() {
     this._renderSalesRegional();
@@ -1167,13 +1189,15 @@ const App = {
 
   _renderSalesRegional() {
     const rows = this._buildSalesRows('regional');
-    this._sortAndRender(rows, this.salesRegionalSort, 'salesRegionalTable', 'regional');
+    this._sortAndRender(rows, this.salesRegionalSort, 'salesRegionalTable', 'regional', this.salesRegionalView);
     document.getElementById('sortSalesRegional').textContent = this._sortLabel(this.salesRegionalSort);
+    document.getElementById('viewSalesRegional').textContent = this._viewLabel(this.salesRegionalView);
   },
   _renderSalesArea() {
     const rows = this._buildSalesRows('area');
-    this._sortAndRender(rows, this.salesAreaSort, 'salesAreaTable', 'area');
+    this._sortAndRender(rows, this.salesAreaSort, 'salesAreaTable', 'area', this.salesAreaView);
     document.getElementById('sortSalesArea').textContent = this._sortLabel(this.salesAreaSort);
+    document.getElementById('viewSalesArea').textContent = this._viewLabel(this.salesAreaView);
   },
   _renderSalesToko() {
     const picked = this.tokoStores || [];
@@ -1185,8 +1209,9 @@ const App = {
       if (picked.length && picked.indexOf(r.key) === -1) return false;
       return true;
     });
-    this._sortAndRender(rows, this.salesTokoSort, 'salesTokoTable', 'branch');
+    this._sortAndRender(rows, this.salesTokoSort, 'salesTokoTable', 'branch', this.salesTokoView);
     document.getElementById('sortSalesToko').textContent = this._sortLabel(this.salesTokoSort);
+    document.getElementById('viewSalesToko').textContent = this._viewLabel(this.salesTokoView);
   },
 
   _buildSalesRows(level) {
@@ -1213,25 +1238,40 @@ const App = {
     return Object.values(groups).map(g => ({ ...g, growth: this._growthPct(g.total, g.prev), val: g.total }));
   },
 
-  _sortAndRender(rows, sortMode, containerId, level) {
+  _sortAndRender(rows, sortMode, containerId, level, viewMode) {
     let arr;
     if (sortMode === 'name') arr = rows.slice().sort((a, b) => String(a.key).localeCompare(String(b.key)));
     else if (sortMode === 'desc') arr = rows.slice().sort((a, b) => b.total - a.total);
     else arr = rows.slice().sort((a, b) => a.total - b.total);
-    this._renderSalesTable(containerId, arr, level);
+    this._renderSalesTable(containerId, arr, level, viewMode);
   },
 
-  _renderSalesTable(containerId, rows, level) {
+  // viewMode 'simple' = kolom grup (Offline/Online/Catering)
+  // viewMode 'full'   = satu kolom per channel (Dine In, Take Away, ShopeeFood, ...)
+  //                     channel yang semua barisnya 0 tidak ditampilkan
+  _salesColumns(rows, viewMode) {
+    if (viewMode === 'full') {
+      return CONFIG.ALL_CHANNELS_ORDER
+        .map(ch => ({ label: this._loc(ch.label), channels: [ch.key] }))
+        .filter(col => rows.some(r => (r.channels[col.channels[0]] || 0) !== 0));
+    }
+    return CONFIG.CHANNEL_GROUPS.map(g => ({
+      label: this._loc(g.label),
+      channels: [...g.always, ...g.conditional].flatMap(c => c.channels)
+    }));
+  },
+
+  _renderSalesTable(containerId, rows, level, viewMode) {
     const container = document.getElementById(containerId);
     if (rows.length === 0) {
       container.innerHTML = `<div class="empty-note">${this._esc(this.t('no_data'))}</div>`;
       return;
     }
-    const groups = CONFIG.CHANNEL_GROUPS;  // 3 groups
+    const cols = this._salesColumns(rows, viewMode);
     let html = '<div class="stbl-wrap"><table class="stbl">';
     html += '<thead><tr>';
     html += `<th>${this._esc(this.t('tbl_name'))}</th>`;
-    groups.forEach(g => { html += `<th class="ta-r">${this._esc(this._loc(g.label))}</th>`; });
+    cols.forEach(c => { html += `<th class="ta-r">${this._esc(c.label)}</th>`; });
     html += `<th class="ta-r">${this._esc(this.t('tbl_total'))}</th>`;
     html += `<th class="ta-r">${this._esc(this.t('tbl_growth'))}</th>`;
     html += '</tr></thead><tbody>';
@@ -1242,9 +1282,8 @@ const App = {
       const grCol = gr === null ? 'var(--ink-2)' : (gr >= 0 ? 'var(--success)' : 'var(--danger)');
       const name = isBranch ? this._short(r.key) : r.key;
       html += `<tr class="stbl-clickable" data-level="${level}" data-key="${this._esc(r.key)}"><td class="stbl-name">${this._esc(name)}</td>`;
-      groups.forEach(g => {
-        const chans = [...g.always, ...g.conditional].flatMap(c => c.channels);
-        const v = chans.reduce((s, c) => s + (r.channels[c] || 0), 0);
+      cols.forEach(c => {
+        const v = c.channels.reduce((s, ch) => s + (r.channels[ch] || 0), 0);
         html += `<td class="ta-r rp-num">${this._fmtRp(v)}</td>`;
       });
       html += `<td class="ta-r rp-num"><b>${this._fmtRp(r.total)}</b></td>`;
@@ -2089,8 +2128,8 @@ const App = {
     if (this._cmpLoading) return;
     if (!force && this._cmpLoaded) return;
     this._cmpLoading = true;
-    const list = document.getElementById('cmpList');
-    if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
+    const box = document.getElementById('cmpStoreTable');
+    if (!this.complaints.length) box.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
     try {
       this.complaints = this._normStores(await Sheets.fetchComplaints());
       Sheets.saveList(Sheets.CACHE_KEY_COMPLAINT, this.complaints);
@@ -2098,7 +2137,7 @@ const App = {
       this._renderComplaintDeps();
     } catch (e) {
       this._toast(this.t('toast_load_failed', { msg: e.message }));
-      if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(e.message)}</div>`;
+      if (!this.complaints.length) box.innerHTML = `<div class="empty-note">${this._esc(e.message)}</div>`;
     } finally { this._cmpLoading = false; }
   },
 
@@ -2110,7 +2149,6 @@ const App = {
 
   _renderComplaintPage() {
     this._safe('cmpStoreTable', () => this._renderComplaintStoreTable());
-    this._safe('cmpList',       () => this._renderComplaintList());
   },
 
   // Kategori disamakan dengan daftar resmi; yang tidak dikenali -> "Lainnya".
@@ -2171,6 +2209,7 @@ const App = {
     const container = document.getElementById('cmpStoreTable');
     if (!container) return;
     document.getElementById('sortCmpStore').textContent = this._sortLabelCount(this.cmpStoreSort);
+    document.getElementById('cmpCount').textContent = this.t('cmp_count', { n: this._filteredComplaints().length });
     let rows = this._buildComplaintStoreRows();
     if (rows.length === 0) {
       container.innerHTML = `<div class="empty-note">${this._esc(this.t('no_data'))}</div>`;
@@ -2243,21 +2282,6 @@ const App = {
       </div>
       <div class="act-row-detail">${this._esc(c.media)}${c.body ? ' · ' + this._esc(c.body.slice(0, 90)) + (c.body.length > 90 ? '…' : '') : ''}</div>
     </div>`;
-  },
-
-  _renderComplaintList() {
-    const rows = this._filteredComplaints();
-    document.getElementById('cmpCount').textContent = this.t('cmp_count', { n: rows.length });
-    const el = document.getElementById('cmpList');
-    if (rows.length === 0) {
-      el.innerHTML = `<div class="empty-note">${this._esc(this.t('cmp_none'))}</div>`;
-      return;
-    }
-    this._cmpVisible = rows;
-    el.innerHTML = rows.map((c, i) => this._complaintRowHtml(c, i)).join('');
-    el.querySelectorAll('.cmp-row').forEach(row => {
-      row.addEventListener('click', () => this._openComplaintDetail(this._cmpVisible[Number(row.dataset.i)]));
-    });
   },
 
   _openComplaintDetail(c) {

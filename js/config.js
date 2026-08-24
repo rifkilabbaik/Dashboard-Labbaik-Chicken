@@ -327,6 +327,9 @@ const CONFIG = {
 
       sort_name: 'Nama ▾', sort_largest: 'Terbesar ▾', sort_smallest: 'Terkecil ▾',
 
+      // Chip kolom tabel penjualan: ringkas (grup) vs semua channel
+      view_simple: 'Simpel ▾', view_full: 'Penuh ▾',
+
       trend_daily: 'Harian', trend_weekly: 'Mingguan', trend_monthly: 'Bulanan',
       trend_title: 'Tren', trend_current: 'Periode ini', trend_prev: 'Bulan lalu',
       trend_prev_year: 'Tahun lalu',
@@ -456,6 +459,8 @@ const CONFIG = {
       sales_regional: 'Regional sales', sales_area: 'Area sales', sales_store: 'Store sales',
 
       sort_name: 'Name ▾', sort_largest: 'Largest ▾', sort_smallest: 'Smallest ▾',
+
+      view_simple: 'Simple ▾', view_full: 'Full ▾',
 
       trend_daily: 'Daily', trend_weekly: 'Weekly', trend_monthly: 'Monthly',
       trend_title: 'Trend', trend_current: 'This period', trend_prev: 'Last month',
