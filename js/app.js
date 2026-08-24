@@ -9,10 +9,14 @@ const App = {
   branchMeta: {}, activeBranches: [], areaToRegional: {}, regionalToAreas: {},
 
   // Kegiatan & Komplain
+  // Rentang tanggalnya IKUT filter periode penjualan (this.applied) supaya
+  // data kegiatan & komplain selalu selaras dengan data penjualan terbaru.
   activities: [], complaints: [],
-  actFilter: { from: '', to: '', name: '', store: '', type: '' },
-  cmpFilter: { from: '', to: '', store: '', media: '', category: '' },
-  _actCalYear: null, _actCalMonth: null,
+  actFilter: { name: '', store: '', type: '' },
+  cmpFilter: { store: '', category: '' },
+  cmpStoreSort: 'desc',
+  OTHER_CAT: '__other',
+  _actCalYear: null, _actCalMonth: null, _actCalAnchor: null,
 
   filter: { from: '', to: '' },  // no more preset
   applied: null,
@@ -36,6 +40,11 @@ const App = {
   salesTokoSort:     'desc',
   tokoRegional: '',
   tokoArea: '',
+  tokoStores: [],            // multi-pilih toko (kosong = semua)
+
+  // Tren di dalam pop up detail (harian / mingguan / tahunan)
+  detailTrendView: 'daily',
+  _detailCtx: null,
 
   // Filter modal
   _filterOrig: null,
@@ -76,6 +85,8 @@ const App = {
       this.applied = { ...this.filter };
       await this.loadAll();
     }
+    // Komplain ikut dimuat sejak awal: dipakai panel "10 Toko komplain tertinggi" di dasbor
+    this.loadComplaints(true);
   },
 
   // ==========================================================================
@@ -97,6 +108,9 @@ const App = {
     this.salesRegionalSort = localStorage.getItem('salesRegionalSort') || 'desc';
     this.salesAreaSort     = localStorage.getItem('salesAreaSort')     || 'desc';
     this.salesTokoSort     = localStorage.getItem('salesTokoSort')     || 'desc';
+    this.cmpStoreSort      = localStorage.getItem('cmpStoreSort')      || 'desc';
+    this.detailTrendView   = localStorage.getItem('detailTrendView')   || 'daily';
+    if (!['daily','weekly','yearly'].includes(this.detailTrendView)) this.detailTrendView = 'daily';
   },
   _save(k, v) { localStorage.setItem(k, v); },
 
@@ -158,13 +172,14 @@ const App = {
     document.querySelectorAll('.sidebar-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.dataset.page === page));
     document.getElementById('pageTitle').textContent = this._pageTitle(page);
-    // Filter periode hanya relevan untuk halaman penjualan
-    document.getElementById('btnFilter').style.display = (page === 'dashboard' || page === 'sales') ? '' : 'none';
+    // Filter periode dipakai dasbor, penjualan, kegiatan, & komplain
+    document.getElementById('btnFilter').style.display =
+      ['dashboard', 'sales', 'activity', 'complaint'].indexOf(page) >= 0 ? '' : 'none';
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (page === 'sales') this._renderSales();
     if (page === 'upload') this._resetUploadUi();
-    if (page === 'activity') this.loadActivities(true);
-    if (page === 'complaint') this.loadComplaints(true);
+    if (page === 'activity')  { this._renderActivityPage();  this.loadActivities(true); }
+    if (page === 'complaint') { this._renderComplaintPage(); this.loadComplaints(true); }
   },
   _pageTitle(page) {
     const titleMap = {
@@ -192,16 +207,81 @@ const App = {
   _openFilterModal() {
     document.getElementById('fFrom').value = this.applied ? this.applied.from : this.filter.from;
     document.getElementById('fTo').value   = this.applied ? this.applied.to   : this.filter.to;
-    this._filterOrig = { from: document.getElementById('fFrom').value, to: document.getElementById('fTo').value };
+    // Filter tambahan: kegiatan (nama/toko/kegiatan), komplain (nama toko/kategori)
+    this._fltDraft = this._pageFilterDraft();
+    this._renderFilterExtra();
+    this._filterOrig = {
+      from: document.getElementById('fFrom').value,
+      to: document.getElementById('fTo').value,
+      extra: JSON.stringify(this._fltDraft)
+    };
     this._updateRangeLabel();
     this._updateCancelResetBtn();
     document.getElementById('filterModal').hidden = false;
+  },
+  _pageFilterDraft() {
+    if (this.currentPage === 'activity')  return { ...this.actFilter };
+    if (this.currentPage === 'complaint') return { ...this.cmpFilter };
+    return null;
+  },
+
+  // Baris filter tambahan di dalam modal periode; isinya tergantung halaman aktif.
+  // Dasbor & penjualan: hanya periode. Kegiatan & komplain: periode + filter lain.
+  _renderFilterExtra() {
+    const wrap = document.getElementById('filterExtra');
+    if (!wrap) return;
+    const d = this._fltDraft;
+    if (!d) { wrap.innerHTML = ''; return; }
+    const row = (label, key) =>
+      `<div class="filter-row"><label>${this._esc(label)}</label><div class="dropdown-select" data-key="${key}"></div></div>`;
+
+    if (this.currentPage === 'activity') {
+      wrap.innerHTML = row(this.t('act_name'),  'fltActName')
+                     + row(this.t('act_store'), 'fltActStore')
+                     + row(this.t('act_type'),  'fltActType');
+
+      const nameOpts = { '': this.t('all') };
+      Array.from(new Set(this.activities.map(a => a.name).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b))
+        .forEach(n => { nameOpts[n] = n; });
+      if (d.name && !nameOpts[d.name]) nameOpts[d.name] = d.name;
+      this._initDropdown('fltActName', nameOpts, d.name, (v) => { d.name = v; this._updateCancelResetBtn(); }, { search: true });
+
+      const storeOpts = this._storeOptions(true);
+      Array.from(new Set(this.activities.map(a => a.store).filter(Boolean)))
+        .forEach(s => { if (!storeOpts[s]) storeOpts[s] = this._short(s); });
+      if (d.store && !storeOpts[d.store]) storeOpts[d.store] = this._short(d.store);
+      this._initDropdown('fltActStore', storeOpts, d.store, (v) => { d.store = v; this._updateCancelResetBtn(); }, { search: true });
+
+      const typeOpts = { '': this.t('all') };
+      CONFIG.ACTIVITY_TYPES.forEach(t => { typeOpts[t.key] = this._loc(t.label); });
+      if (d.type && !typeOpts[d.type]) typeOpts[d.type] = d.type;
+      this._initDropdown('fltActType', typeOpts, d.type, (v) => { d.type = v; this._updateCancelResetBtn(); });
+      return;
+    }
+
+    // Komplain
+    wrap.innerHTML = row(this.t('cmp_store'), 'fltCmpStore')
+                   + row(this.t('cmp_category'), 'fltCmpCategory');
+    const storeOpts = this._storeOptions(true);
+    Array.from(new Set(this.complaints.map(c => c.store).filter(Boolean)))
+      .forEach(s => { if (!storeOpts[s]) storeOpts[s] = this._short(s); });
+    if (d.store && !storeOpts[d.store]) storeOpts[d.store] = this._short(d.store);
+    this._initDropdown('fltCmpStore', storeOpts, d.store, (v) => { d.store = v; this._updateCancelResetBtn(); }, { search: true });
+
+    const catOpts = { '': this.t('all') };
+    CONFIG.COMPLAINT_CATEGORIES.forEach(c => { catOpts[c] = c; });
+    catOpts[this.OTHER_CAT] = this.t('cmp_other_cat');
+    if (d.category && !catOpts[d.category]) catOpts[d.category] = d.category;
+    this._initDropdown('fltCmpCategory', catOpts, d.category, (v) => { d.category = v; this._updateCancelResetBtn(); });
   },
   _updateCancelResetBtn() {
     const btn = document.getElementById('filterCancelReset');
     const f = document.getElementById('fFrom').value;
     const t = document.getElementById('fTo').value;
-    const changed = this._filterOrig && (f !== this._filterOrig.from || t !== this._filterOrig.to);
+    const extra = JSON.stringify(this._fltDraft);
+    const changed = this._filterOrig &&
+      (f !== this._filterOrig.from || t !== this._filterOrig.to || extra !== this._filterOrig.extra);
     btn.textContent = changed ? this.t('reset') : this.t('cancel');
     btn.dataset.mode = changed ? 'reset' : 'cancel';
   },
@@ -211,6 +291,8 @@ const App = {
       // restore original
       document.getElementById('fFrom').value = this._filterOrig.from;
       document.getElementById('fTo').value   = this._filterOrig.to;
+      this._fltDraft = JSON.parse(this._filterOrig.extra || 'null');
+      this._renderFilterExtra();
       this._updateRangeLabel();
       this._updateCancelResetBtn();
     } else {
@@ -221,6 +303,10 @@ const App = {
     this._captureFilter();
     this._rangeIsDefault = false;
     this.applied = { ...this.filter };
+    if (this._fltDraft) {
+      if (this.currentPage === 'activity')  this.actFilter = { ...this._fltDraft };
+      if (this.currentPage === 'complaint') this.cmpFilter = { ...this._fltDraft };
+    }
     document.getElementById('filterModal').hidden = true;
     this._computeFiltered();
     this._renderAll();
@@ -393,6 +479,18 @@ const App = {
       this.areaToRegional[r.area] = r.regional;
       (this.regionalToAreas[r.regional] = this.regionalToAreas[r.regional] || []).push(r.area);
     });
+    // Nama toko dari sheet Regional adalah acuan penyelarasan nama
+    this._buildStoreIndex();
+    this.complaints = this._normStores(this.complaints);
+    this.activities = this._normStores(this.activities);
+  },
+
+  // Selaraskan kolom "store" pada daftar komplain / kegiatan
+  _normStores(list) {
+    return (list || []).map(r => {
+      const canon = this._canonStore(r.store);
+      return canon === r.store ? r : { ...r, store: canon };
+    });
   },
 
   _computeFiltered() {
@@ -432,6 +530,10 @@ const App = {
   _sortLabel(mode) {
     return mode === 'name' ? this.t('sort_name') : mode === 'desc' ? this.t('sort_largest') : this.t('sort_smallest');
   },
+  // Untuk daftar berbasis jumlah (komplain), bukan rupiah
+  _sortLabelCount(mode) {
+    return mode === 'name' ? this.t('sort_name') : mode === 'desc' ? this.t('sort_most') : this.t('sort_least');
+  },
   _sortArr(arr, mode) {
     if (mode === 'name') return arr.slice().sort((a, b) => a.key.localeCompare(b.key));
     if (mode === 'desc') return arr.slice().sort((a, b) => b.val - a.val);
@@ -453,6 +555,9 @@ const App = {
     if (this.currentPage === 'activity')  this._safe('activity',  () => this._renderActivityPage());
     if (this.currentPage === 'complaint') this._safe('complaint', () => this._renderComplaintPage());
   },
+
+  // Rentang tanggal aktif (dipakai penjualan, kegiatan, & komplain)
+  _period() { return this.applied || this.filter || { from: '', to: '' }; },
 
   // ==========================================================================
   // DASHBOARD
@@ -517,6 +622,35 @@ const App = {
         const key = row.dataset.key;
         if (key) this._openEntityDetail('branch', key);
       });
+    });
+
+    // 10 toko dengan komplain tertinggi (periode sama dengan penjualan)
+    this._safe('topComplaints', () => this._renderTopComplaints());
+  },
+
+  // ==========================================================================
+  // DASHBOARD — 10 toko komplain tertinggi
+  // ==========================================================================
+  _renderTopComplaints() {
+    const el = document.getElementById('dTopCmp');
+    const cnt = document.getElementById('dTopCmpCount');
+    if (!el) return;
+    const rows = this._complaintsInPeriod();
+    const totals = {};
+    rows.forEach(c => {
+      const s = c.store;
+      if (!s) return;
+      totals[s] = (totals[s] || 0) + 1;
+    });
+    const arr = Object.entries(totals)
+      .map(([k, v]) => ({ key: k, val: v }))
+      .sort((a, b) => b.val - a.val || this._short(a.key).localeCompare(this._short(b.key)))
+      .slice(0, 10);
+    if (cnt) cnt.textContent = this.t('cmp_count', { n: rows.length });
+    el.innerHTML = this._renderRankCount(arr, true);
+    el.querySelectorAll('.rank-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => this._openStoreComplaints(row.dataset.key));
     });
   },
 
@@ -847,7 +981,7 @@ const App = {
         subColor: cGr === null ? 'var(--ink-2)' : (cGr >= 0 ? 'var(--success)' : 'var(--danger)')
       });
     });
-    this._showDetail(displayName, rows);
+    this._showDetail(displayName, rows, { level, key });
   },
 
   _filterEntity(rows, level, key) {
@@ -860,7 +994,8 @@ const App = {
     });
   },
 
-  _showDetail(title, rows) {
+  // trendCtx = { level, key } -> tampilkan grafik harian/mingguan/tahunan di bawah detail
+  _showDetail(title, rows, trendCtx) {
     document.getElementById('detailTitle').textContent = title;
     let html = '<div class="detail-list">';
     rows.forEach(r => {
@@ -878,7 +1013,122 @@ const App = {
     });
     html += '</div>';
     document.getElementById('detailBody').innerHTML = html;
+    this._setupDetailTrend(trendCtx);
     document.getElementById('detailModal').hidden = false;
+  },
+
+  // ==========================================================================
+  // TREN DI DALAM POP UP DETAIL (harian / mingguan / tahunan)
+  // ==========================================================================
+  _setupDetailTrend(ctx) {
+    const box = document.getElementById('detailTrend');
+    if (!box) return;
+    this._detailCtx = ctx || null;
+    if (this.charts.detail) { this.charts.detail.destroy(); this.charts.detail = null; }
+    if (!ctx) { box.hidden = true; return; }
+    box.hidden = false;
+    box.querySelectorAll('.trend-tab[data-dtrend]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.dtrend === this.detailTrendView);
+      btn.onclick = () => {
+        this.detailTrendView = btn.dataset.dtrend;
+        this._save('detailTrendView', this.detailTrendView);
+        box.querySelectorAll('.trend-tab[data-dtrend]').forEach(b => b.classList.toggle('active', b === btn));
+        this._drawDetailTrend();
+      };
+    });
+    // Modal baru muncul -> tunggu layout supaya ukuran canvas benar
+    setTimeout(() => this._drawDetailTrend(), 30);
+  },
+
+  _detailSeries(view, level, key) {
+    const pick = (src) => this._filterEntity(src, level, key);
+    const p = this._period();
+    if (view === 'daily') {
+      const map = {};
+      pick(this.filtered).forEach(r => { map[r.date] = (map[r.date] || 0) + r.total; });
+      const dates = this._enumerateDates(p.from, p.to);
+      return {
+        labels: dates.map(d => { const [, m, dd] = d.split('-'); return parseInt(dd) + '/' + parseInt(m); }),
+        values: dates.map(d => map[d] || 0),
+        dates: dates.map(d => this._formatFull(d)),
+        line: true
+      };
+    }
+    if (view === 'weekly') {
+      const totals = {};
+      pick(this.filtered).forEach(r => { totals[r.date] = (totals[r.date] || 0) + r.total; });
+      const dates = this._enumerateDates(p.from, p.to);
+      const labels = [], values = [], spans = [];
+      let idx = 0, w = 1;
+      while (idx < dates.length) {
+        const chunk = dates.slice(idx, idx + 7);
+        labels.push(this.t('trend_week_prefix') + w);
+        values.push(chunk.reduce((s, d) => s + (totals[d] || 0), 0));
+        spans.push(this._formatShort(chunk[0]) + ' — ' + this._formatShort(chunk[chunk.length - 1]));
+        idx += 7; w++;
+      }
+      return { labels, values, dates: spans, line: false };
+    }
+    // Tahunan: 12 bulan pada tahun periode aktif
+    const anchor = p.to || this._latestDate() || this._toDateStr(new Date());
+    const year = parseInt(String(anchor).split('-')[0], 10);
+    const totals = new Array(12).fill(0);
+    pick(this.data).forEach(r => {
+      const [y, m] = r.date.split('-').map(Number);
+      if (y === year) totals[m - 1] += r.total;
+    });
+    const months = this.t('months_short');
+    return {
+      labels: months.slice(),
+      values: totals,
+      dates: months.map(n => n + ' ' + year),
+      line: false
+    };
+  },
+
+  _drawDetailTrend() {
+    const ctx = this._detailCtx;
+    const canvas = document.getElementById('detailTrendChart');
+    if (!ctx || !canvas || typeof Chart === 'undefined') return;
+    const s = this._detailSeries(this.detailTrendView, ctx.level, ctx.key);
+    if (this.charts.detail) this.charts.detail.destroy();
+    const cs = getComputedStyle(document.documentElement);
+    const sea = cs.getPropertyValue('--sea').trim() || '#4A90B8';
+    const ink = cs.getPropertyValue('--ink-3').trim() || '#8A93A0';
+    const grid = cs.getPropertyValue('--line').trim() || '#E8E2D3';
+    const maxV = Math.max.apply(null, s.values.length ? s.values : [0]);
+    this.charts.detail = new Chart(canvas.getContext('2d'), {
+      type: s.line ? 'line' : 'bar',
+      data: { labels: s.labels, datasets: [{
+        data: s.values,
+        borderColor: sea,
+        backgroundColor: s.line ? this._hexToRgba(sea, 0.1) : sea,
+        borderWidth: s.line ? 2 : 0,
+        fill: s.line,
+        tension: s.line ? 0.3 : 0,
+        pointRadius: s.line ? 2 : 0,
+        pointHoverRadius: s.line ? 5 : 0,
+        borderRadius: s.line ? 0 : 3,
+        maxBarThickness: 34
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1F2937', padding: 10,
+            callbacks: {
+              title: (i) => s.dates[i[0].dataIndex] || s.labels[i[0].dataIndex],
+              label: (c) => this._fmtRp(c.parsed.y)
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: ink, font: { size: 9 }, maxRotation: 0, autoSkipPadding: 6 } },
+          y: { min: 0, max: maxV > 0 ? maxV * 1.05 : undefined, grid: { color: grid }, ticks: { color: ink, font: { size: 9 }, callback: (v) => this._fmtShort(v) } }
+        }
+      }
+    });
   },
 
   _rangeText(r) {
@@ -926,10 +1176,13 @@ const App = {
     document.getElementById('sortSalesArea').textContent = this._sortLabel(this.salesAreaSort);
   },
   _renderSalesToko() {
+    const picked = this.tokoStores || [];
     const rows = this._buildSalesRows('branch').filter(r => {
       const m = this.branchMeta[r.key];
       if (this.tokoRegional && (!m || m.regional !== this.tokoRegional)) return false;
       if (this.tokoArea && (!m || m.area !== this.tokoArea)) return false;
+      // Kosong = semua toko; kalau ada pilihan, hanya toko yang dipilih
+      if (picked.length && picked.indexOf(r.key) === -1) return false;
       return true;
     });
     this._sortAndRender(rows, this.salesTokoSort, 'salesTokoTable', 'branch');
@@ -1005,6 +1258,7 @@ const App = {
   },
 
   _renderTokoDropdowns() {
+    this._renderTokoStoreDropdown();
     if (!this.regional || this.regional.length === 0) return;
     const regs = Array.from(new Set(this.regional.map(r => r.regional))).sort();
     const regOpts = { '': this.t('all') };
@@ -1029,10 +1283,30 @@ const App = {
       this.tokoArea = v;
       if (v && !this.tokoRegional) {
         const parent = (this.regional.find(r => r.area === v) || {}).regional;
-        if (parent) { this.tokoRegional = parent; this._renderTokoDropdowns(); }
+        if (parent) { this.tokoRegional = parent; }
       }
+      this._renderTokoDropdowns();
       this._renderSalesToko();
     });
+
+  },
+
+  // Toko: multi-pilih, ikut batasan Regional/Area yang sedang aktif
+  _renderTokoStoreDropdown() {
+    const branches = this._storeList().filter(b => {
+      const m = this.branchMeta[b];
+      if (this.tokoRegional && (!m || m.regional !== this.tokoRegional)) return false;
+      if (this.tokoArea && (!m || m.area !== this.tokoArea)) return false;
+      return true;
+    });
+    // Buang pilihan yang tidak lagi tersedia setelah Regional/Area berubah
+    this.tokoStores = (this.tokoStores || []).filter(s => branches.indexOf(s) >= 0);
+    const storeOpts = {};
+    branches.forEach(b => { storeOpts[b] = this._short(b); });
+    this._initMultiDropdown('tokoStores', storeOpts, this.tokoStores, (vals) => {
+      this.tokoStores = vals;
+      this._renderSalesToko();
+    }, { search: true, allLabel: this.t('dd_all_stores') });
   },
 
   // ==========================================================================
@@ -1201,6 +1475,82 @@ const App = {
     if (empty) empty.hidden = shown > 0;
   },
 
+  // Dropdown MULTI-pilih (checkbox). Dipakai filter toko di Penjualan Toko.
+  // selected = array value; kosong berarti "semua".
+  // opts: { search: true, allLabel: '...' }
+  _initMultiDropdown(key, options, selected, onChange, opts) {
+    const wrap = document.querySelector(`.dropdown-select[data-key="${key}"]`);
+    if (!wrap) return;
+    opts = opts || {};
+    const items = Object.entries(options);
+    const sel = new Set((selected || []).filter(v => options[v] !== undefined));
+    const allLabel = opts.allLabel || this.t('all');
+    const labelOf = () => {
+      if (sel.size === 0 || sel.size === items.length) return allLabel;
+      if (sel.size === 1) return String(options[Array.from(sel)[0]]);
+      return this.t('dd_n_selected', { n: sel.size });
+    };
+
+    const optsHtml = items.map(([k, v]) => {
+      const label = String(v);
+      return `<div class="dd-opt dd-opt-check${sel.has(k) ? ' checked' : ''}" data-v="${this._esc(k)}" data-s="${this._esc(label.toLowerCase())}"><span class="dd-box"></span><span>${this._esc(label)}</span></div>`;
+    }).join('');
+
+    wrap.innerHTML = `<button type="button" class="dd-btn${sel.size ? '' : ' dd-btn-empty'}"><span class="dd-btn-text">${this._esc(labelOf())}</span><span class="dd-arrow">▾</span></button>
+      <div class="dd-menu dd-menu-search" hidden>
+        <div class="dd-bulk">
+          <button type="button" data-bulk="all">${this._esc(this.t('dd_select_all'))}</button>
+          <button type="button" data-bulk="none">${this._esc(this.t('dd_clear'))}</button>
+        </div>
+        ${opts.search ? `<div class="dd-search"><input type="text" class="dd-search-input" placeholder="${this._esc(this.t('search_placeholder'))}" /></div>` : ''}
+        <div class="dd-opts">${optsHtml}</div>
+        <div class="dd-empty" hidden>${this._esc(this.t('no_result'))}</div>
+      </div>`;
+
+    const btn = wrap.querySelector('.dd-btn');
+    const menu = wrap.querySelector('.dd-menu');
+    const input = wrap.querySelector('.dd-search-input');
+    const txt = wrap.querySelector('.dd-btn-text');
+    const sync = () => {
+      txt.textContent = labelOf();
+      btn.classList.toggle('dd-btn-empty', sel.size === 0);
+      wrap.querySelectorAll('.dd-opt-check').forEach(o => o.classList.toggle('checked', sel.has(o.dataset.v)));
+    };
+
+    // Menu tetap terbuka saat memilih (multi-pilih)
+    menu.onclick = (e) => e.stopPropagation();
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.dd-menu').forEach(m => { if (m !== menu) m.hidden = true; });
+      menu.hidden = !menu.hidden;
+      if (!menu.hidden && input) { input.value = ''; this._ddFilter(wrap, ''); input.focus(); }
+    };
+    if (input) input.oninput = () => this._ddFilter(wrap, input.value);
+    wrap.querySelectorAll('.dd-bulk button').forEach(b => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        sel.clear();
+        // "Pilih semua" = tanpa batasan toko, sama artinya dengan kosong
+        if (b.dataset.bulk === 'all') items.forEach(([k]) => sel.add(k));
+        sync();
+        onChange(sel.size === items.length ? [] : Array.from(sel));
+      };
+    });
+    wrap.querySelectorAll('.dd-opt-check').forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const v = el.dataset.v;
+        if (sel.has(v)) sel.delete(v); else sel.add(v);
+        sync();
+        onChange(sel.size === items.length ? [] : Array.from(sel));
+      };
+    });
+    if (!App._ddOutsideBound) {
+      App._ddOutsideBound = true;
+      document.addEventListener('click', () => document.querySelectorAll('.dd-menu').forEach(m => m.hidden = true));
+    }
+  },
+
   // ==========================================================================
   // UPLOAD PAGE
   // ==========================================================================
@@ -1354,6 +1704,42 @@ const App = {
   // ==========================================================================
   // KEGIATAN & KOMPLAIN — shared helpers
   // ==========================================================================
+  // ---- Penyelarasan nama toko -------------------------------------------
+  // Data komplain/kegiatan sering memakai nama pendek ("LC Cipasir"), sedangkan
+  // penjualan memakai nama panjang ("Labbaik Chicken - Cipasir"). Semua nama
+  // diubah ke nama panjang supaya satu toko tidak terhitung dua kali.
+  _storeNorm(s) {
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .replace(/^labbaik\s*chicken/, '')
+      .replace(/^lc\b/, '')
+      .replace(/[^a-z0-9]/g, '');
+  },
+  _buildStoreIndex() {
+    const idx = {};
+    const add = (name, canon) => {
+      const n = this._storeNorm(name);
+      if (n && idx[n] === undefined) idx[n] = canon;
+    };
+    // 1) Nama resmi: sheet Regional, lalu data penjualan
+    (this.activeBranches || []).forEach(b => add(b, b));
+    Array.from(new Set((this.data || []).map(r => r.branch))).forEach(b => add(b, b));
+    // 2) Alias manual (nama pendek -> nama panjang)
+    Object.keys(CONFIG.STORE_ALIASES || {}).forEach(shortName => {
+      const full = CONFIG.STORE_ALIASES[shortName];
+      const canon = idx[this._storeNorm(full)] || full;
+      add(shortName, canon);
+      add(full, canon);
+    });
+    this._storeIndex = idx;
+  },
+  _canonStore(name) {
+    const raw = String(name == null ? '' : name).trim();
+    if (!raw) return '';
+    if (!this._storeIndex) this._buildStoreIndex();
+    return this._storeIndex[this._storeNorm(raw)] || raw;
+  },
+
   // Daftar toko untuk dropdown: dari sheet Regional, fallback ke data penjualan.
   _storeList() {
     let list = (this.activeBranches || []).slice();
@@ -1398,19 +1784,8 @@ const App = {
   // ==========================================================================
   _bindActivityPage() {
     document.getElementById('btnActAdd').addEventListener('click', () => this._openActivityForm());
-    document.getElementById('btnActCal').addEventListener('click', () => this._openActivityCalendar());
-    document.getElementById('btnActReset').addEventListener('click', () => {
-      this.actFilter = { from: '', to: '', name: '', store: '', type: '' };
-      this._renderActivityPage();
-    });
-    document.getElementById('actRangeTrigger').addEventListener('click', () => {
-      this._openRangePicker({
-        from: this.actFilter.from, to: this.actFilter.to, allowClear: true,
-        onApply: (from, to) => { this.actFilter.from = from; this.actFilter.to = to; this._renderActivityPage(); }
-      });
-    });
     document.getElementById('actFormSave').addEventListener('click', () => this._saveActivity());
-    document.querySelectorAll('#actFormModal [data-close-modal], #actCalModal [data-close-modal], #actDayModal [data-close-modal]')
+    document.querySelectorAll('#actFormModal [data-close-modal], #actDayModal [data-close-modal]')
       .forEach(el => el.addEventListener('click', () => { el.closest('.modal').hidden = true; }));
     document.getElementById('btnActReload').addEventListener('click', () => this.loadActivities(false, true));
   },
@@ -1418,7 +1793,7 @@ const App = {
   async loadActivities(useCacheFirst, force) {
     if (useCacheFirst) {
       const cached = Sheets.loadList(Sheets.CACHE_KEY_ACTIVITY);
-      if (cached) { this.activities = cached; this._renderActivityPage(); }
+      if (cached) { this.activities = this._normStores(cached); this._renderActivityPage(); }
     }
     if (this._actLoading) return;
     if (!force && this._actLoaded) return;
@@ -1426,7 +1801,7 @@ const App = {
     const list = document.getElementById('actList');
     if (!this.activities.length) list.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
     try {
-      this.activities = await Sheets.fetchActivities();
+      this.activities = this._normStores(await Sheets.fetchActivities());
       Sheets.saveList(Sheets.CACHE_KEY_ACTIVITY, this.activities);
       this._actLoaded = true;
       this._renderActivityPage();
@@ -1437,49 +1812,33 @@ const App = {
   },
 
   _renderActivityPage() {
-    this._renderActivityFilters();
-    this._renderActivityList();
+    this._safe('actCalendar', () => this._renderActivityCalendar());
+    this._safe('actList',     () => this._renderActivityList());
   },
 
-  _renderActivityFilters() {
-    // Rentang tanggal
-    const rl = document.getElementById('actRangeLabel');
-    const f = this.actFilter;
-    if (!f.from && !f.to) rl.textContent = this.t('all');
-    else if (f.from && f.to) rl.textContent = this._formatDMY(f.from) + ' – ' + this._formatDMY(f.to);
-    else rl.textContent = this._formatDMY(f.from || f.to);
-
-    // Nama (dari data kegiatan)
-    const names = Array.from(new Set(this.activities.map(a => a.name).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b));
-    const nameOpts = { '': this.t('all') };
-    names.forEach(n => { nameOpts[n] = n; });
-    if (f.name && !nameOpts[f.name]) nameOpts[f.name] = f.name;
-    this._initDropdown('actFName', nameOpts, f.name, (v) => { f.name = v; this._renderActivityList(); }, { search: true });
-
-    // Toko: hanya toko yang punya kegiatan + opsi semua
-    const stores = Array.from(new Set(this.activities.map(a => a.store).filter(Boolean)))
-      .sort((a, b) => this._short(a).localeCompare(this._short(b)));
-    const storeOpts = { '': this.t('all') };
-    stores.forEach(b => { storeOpts[b] = this._short(b); });
-    if (f.store && !storeOpts[f.store]) storeOpts[f.store] = this._short(f.store);
-    this._initDropdown('actFStore', storeOpts, f.store, (v) => { f.store = v; this._renderActivityList(); }, { search: true });
-
-    // Kegiatan
-    const typeOpts = { '': this.t('all') };
-    CONFIG.ACTIVITY_TYPES.forEach(t => { typeOpts[t.key] = this._loc(t.label); });
-    this._initDropdown('actFType', typeOpts, f.type, (v) => { f.type = v; this._renderActivityList(); });
-  },
-
+  // Kegiatan memakai rentang tanggal filter penjualan + filter nama/toko/kegiatan
   _filteredActivities() {
     const f = this.actFilter;
+    const p = this._period();
     return this.activities.filter(a => {
-      if (!this._inRange(a.date, f.from, f.to)) return false;
+      if (!this._inRange(a.date, p.from, p.to)) return false;
       if (f.name && a.name !== f.name) return false;
       if (f.store && a.store !== f.store) return false;
       if (f.type && a.type !== f.type) return false;
       return true;
     }).sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(a.name).localeCompare(String(b.name)));
+  },
+
+  // Kalender memakai filter nama/toko/kegiatan, tapi TIDAK dibatasi periode
+  // supaya tombol bulan sebelum/sesudah tetap berguna.
+  _activitiesForCalendar() {
+    const f = this.actFilter;
+    return this.activities.filter(a => {
+      if (f.name && a.name !== f.name) return false;
+      if (f.store && a.store !== f.store) return false;
+      if (f.type && a.type !== f.type) return false;
+      return true;
+    });
   },
 
   _activityDetailText(a) {
@@ -1597,7 +1956,7 @@ const App = {
     };
     try {
       await Sheets.addActivity(row);
-      this.activities = this.activities.concat([row]);
+      this.activities = this.activities.concat([{ ...row, store: this._canonStore(row.store) }]);
       Sheets.saveList(Sheets.CACHE_KEY_ACTIVITY, this.activities);
       document.getElementById('actFormModal').hidden = true;
       this._toast(this.t('act_saved'));
@@ -1612,20 +1971,24 @@ const App = {
   // ==========================================================================
   // KEGIATAN — kalender
   // ==========================================================================
-  _openActivityCalendar() {
-    const anchor = (this.activities[0] && this.activities[0].date) || this._toDateStr(new Date());
-    const today = new Date();
-    this._actCalYear  = this._actCalYear  != null ? this._actCalYear  : today.getFullYear();
-    this._actCalMonth = this._actCalMonth != null ? this._actCalMonth : today.getMonth();
-    void anchor;
-    this._renderActivityCalendar();
-    document.getElementById('actCalModal').hidden = false;
+  // Kalender mengikuti bulan periode penjualan. Kalau periodenya berubah,
+  // kalender ikut pindah ke bulan data penjualan terbaru.
+  _syncActCalMonth() {
+    const p = this._period();
+    const anchor = p.to || this._latestDate() || this._toDateStr(new Date());
+    const key = String(anchor).slice(0, 7);
+    if (this._actCalAnchor !== key || this._actCalYear == null) {
+      this._actCalAnchor = key;
+      const [y, m] = String(anchor).split('-').map(Number);
+      this._actCalYear = y;
+      this._actCalMonth = m - 1;
+    }
   },
 
-  // Index: 'yyyy-mm-dd' -> { FLD: [..], GCOM: [..], CX: [..] }
+  // Index: 'yyyy-mm-dd' -> [kegiatan, ...]
   _activityByDate() {
     const map = {};
-    this.activities.forEach(a => {
+    this._activitiesForCalendar().forEach(a => {
       if (!a.date) return;
       (map[a.date] = map[a.date] || []).push(a);
     });
@@ -1633,6 +1996,9 @@ const App = {
   },
 
   _renderActivityCalendar() {
+    const host = document.getElementById('actCalendar');
+    if (!host) return;
+    this._syncActCalMonth();
     const y = this._actCalYear, m = this._actCalMonth;
     const byDate = this._activityByDate();
     const monthNames = this.t('months_full');
@@ -1659,7 +2025,7 @@ const App = {
       </div>`;
     }
     html += '</div></div>';
-    document.getElementById('actCalendar').innerHTML = html;
+    host.innerHTML = html;
 
     document.getElementById('actCalLegend').innerHTML = CONFIG.ACTIVITY_TYPES
       .map(t => `<span class="acal-legend-item"><span class="acal-dot" style="background:${t.color}"></span>${this._esc(this._loc(t.label))}</span>`).join('');
@@ -1672,13 +2038,13 @@ const App = {
       if (++this._actCalMonth > 11) { this._actCalMonth = 0; this._actCalYear++; }
       this._renderActivityCalendar();
     };
-    document.querySelectorAll('#actCalendar .acal-cell.has').forEach(cell => {
+    host.querySelectorAll('.acal-cell.has').forEach(cell => {
       cell.onclick = () => this._openActivityDay(cell.dataset.d);
     });
   },
 
   _openActivityDay(ds) {
-    const items = this.activities.filter(a => a.date === ds)
+    const items = this._activitiesForCalendar().filter(a => a.date === ds)
       .sort((a, b) => String(a.type).localeCompare(String(b.type)) || String(a.name).localeCompare(String(b.name)));
     document.getElementById('actDayTitle').textContent = this.t('act_day_title', { date: this._formatFull(ds) });
     const body = document.getElementById('actDayBody');
@@ -1704,15 +2070,10 @@ const App = {
   // ==========================================================================
   _bindComplaintPage() {
     document.getElementById('btnCmpAdd').addEventListener('click', () => this._openComplaintForm());
-    document.getElementById('btnCmpReset').addEventListener('click', () => {
-      this.cmpFilter = { from: '', to: '', store: '', media: '', category: '' };
-      this._renderComplaintPage();
-    });
-    document.getElementById('cmpRangeTrigger').addEventListener('click', () => {
-      this._openRangePicker({
-        from: this.cmpFilter.from, to: this.cmpFilter.to, allowClear: true,
-        onApply: (from, to) => { this.cmpFilter.from = from; this.cmpFilter.to = to; this._renderComplaintPage(); }
-      });
+    document.getElementById('sortCmpStore').addEventListener('click', () => {
+      this.cmpStoreSort = this._nextSort(this.cmpStoreSort);
+      this._save('cmpStoreSort', this.cmpStoreSort);
+      this._renderComplaintStoreTable();
     });
     document.getElementById('cmpFormSave').addEventListener('click', () => this._saveComplaint());
     document.querySelectorAll('#cmpFormModal [data-close-modal], #cmpDetailModal [data-close-modal]')
@@ -1723,7 +2084,7 @@ const App = {
   async loadComplaints(useCacheFirst, force) {
     if (useCacheFirst) {
       const cached = Sheets.loadList(Sheets.CACHE_KEY_COMPLAINT);
-      if (cached) { this.complaints = cached; this._renderComplaintPage(); }
+      if (cached) { this.complaints = this._normStores(cached); this._renderComplaintDeps(); }
     }
     if (this._cmpLoading) return;
     if (!force && this._cmpLoaded) return;
@@ -1731,55 +2092,157 @@ const App = {
     const list = document.getElementById('cmpList');
     if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(this.t('loading'))}...</div>`;
     try {
-      this.complaints = await Sheets.fetchComplaints();
+      this.complaints = this._normStores(await Sheets.fetchComplaints());
       Sheets.saveList(Sheets.CACHE_KEY_COMPLAINT, this.complaints);
       this._cmpLoaded = true;
-      this._renderComplaintPage();
+      this._renderComplaintDeps();
     } catch (e) {
       this._toast(this.t('toast_load_failed', { msg: e.message }));
       if (!this.complaints.length) list.innerHTML = `<div class="empty-note">${this._esc(e.message)}</div>`;
     } finally { this._cmpLoading = false; }
   },
 
-  _renderComplaintPage() {
-    this._renderComplaintFilters();
-    this._renderComplaintList();
+  // Komplain dipakai di halaman Komplain + panel "10 Toko komplain tertinggi" di dasbor
+  _renderComplaintDeps() {
+    this._safe('complaint', () => this._renderComplaintPage());
+    this._safe('topComplaints', () => this._renderTopComplaints());
   },
 
-  _renderComplaintFilters() {
-    const f = this.cmpFilter;
-    const rl = document.getElementById('cmpRangeLabel');
-    if (!f.from && !f.to) rl.textContent = this.t('all');
-    else if (f.from && f.to) rl.textContent = this._formatDMY(f.from) + ' – ' + this._formatDMY(f.to);
-    else rl.textContent = this._formatDMY(f.from || f.to);
+  _renderComplaintPage() {
+    this._safe('cmpStoreTable', () => this._renderComplaintStoreTable());
+    this._safe('cmpList',       () => this._renderComplaintList());
+  },
 
-    const stores = Array.from(new Set(this.complaints.map(c => c.store).filter(Boolean)))
-      .sort((a, b) => this._short(a).localeCompare(this._short(b)));
-    const storeOpts = { '': this.t('all') };
-    stores.forEach(b => { storeOpts[b] = this._short(b); });
-    if (f.store && !storeOpts[f.store]) storeOpts[f.store] = this._short(f.store);
-    this._initDropdown('cmpFStore', storeOpts, f.store, (v) => { f.store = v; this._renderComplaintList(); }, { search: true });
+  // Kategori disamakan dengan daftar resmi; yang tidak dikenali -> "Lainnya".
+  _canonCategory(c) {
+    const n = String(c == null ? '' : c).replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!n) return '';
+    const hit = CONFIG.COMPLAINT_CATEGORIES.filter(x => x.toLowerCase() === n)[0];
+    return hit || '';
+  },
 
-    const mediaOpts = { '': this.t('all') };
-    CONFIG.COMPLAINT_MEDIA.forEach(m => { mediaOpts[m] = m; });
-    if (f.media && !mediaOpts[f.media]) mediaOpts[f.media] = f.media;
-    this._initDropdown('cmpFMedia', mediaOpts, f.media, (v) => { f.media = v; this._renderComplaintList(); });
-
-    const catOpts = { '': this.t('all') };
-    CONFIG.COMPLAINT_CATEGORIES.forEach(c => { catOpts[c] = c; });
-    if (f.category && !catOpts[f.category]) catOpts[f.category] = f.category;
-    this._initDropdown('cmpFCategory', catOpts, f.category, (v) => { f.category = v; this._renderComplaintList(); });
+  // Komplain dalam periode penjualan yang aktif (tanpa filter toko/kategori)
+  _complaintsInPeriod() {
+    const p = this._period();
+    return this.complaints.filter(c => this._inRange(c.trxDate, p.from, p.to));
   },
 
   _filteredComplaints() {
     const f = this.cmpFilter;
-    return this.complaints.filter(c => {
-      if (!this._inRange(c.trxDate, f.from, f.to)) return false;
+    return this._complaintsInPeriod().filter(c => {
       if (f.store && c.store !== f.store) return false;
-      if (f.media && c.media !== f.media) return false;
-      if (f.category && c.category !== f.category) return false;
+      if (f.category) {
+        const cc = this._canonCategory(c.category);
+        if (f.category === this.OTHER_CAT ? cc !== '' : cc !== f.category) return false;
+      }
       return true;
     }).sort((a, b) => (b.trxDate || '').localeCompare(a.trxDate || ''));
+  },
+
+  // ==========================================================================
+  // KOMPLAIN — rekap semua toko per kategori
+  // ==========================================================================
+  _buildComplaintStoreRows() {
+    const cats = CONFIG.COMPLAINT_CATEGORIES;
+    const groups = {};
+    const ensure = (store) => {
+      if (!groups[store]) {
+        groups[store] = { key: store, total: 0, other: 0, cats: {} };
+        cats.forEach(c => { groups[store].cats[c] = 0; });
+      }
+      return groups[store];
+    };
+    // Semua toko ikut tampil (termasuk yang nol komplain) supaya urutan
+    // "tersedikit" tetap bermakna. Kalau filter toko aktif, hanya toko itu.
+    const f = this.cmpFilter;
+    if (f.store) ensure(f.store);
+    else this._storeList().forEach(s => ensure(s));
+
+    this._filteredComplaints().forEach(c => {
+      const g = ensure(c.store || '—');
+      g.total++;
+      const cc = this._canonCategory(c.category);
+      if (cc) g.cats[cc]++; else g.other++;
+    });
+    return Object.values(groups);
+  },
+
+  _renderComplaintStoreTable() {
+    const container = document.getElementById('cmpStoreTable');
+    if (!container) return;
+    document.getElementById('sortCmpStore').textContent = this._sortLabelCount(this.cmpStoreSort);
+    let rows = this._buildComplaintStoreRows();
+    if (rows.length === 0) {
+      container.innerHTML = `<div class="empty-note">${this._esc(this.t('no_data'))}</div>`;
+      return;
+    }
+    if (this.cmpStoreSort === 'name') rows.sort((a, b) => this._short(a.key).localeCompare(this._short(b.key)));
+    else if (this.cmpStoreSort === 'desc') rows.sort((a, b) => b.total - a.total || this._short(a.key).localeCompare(this._short(b.key)));
+    else rows.sort((a, b) => a.total - b.total || this._short(a.key).localeCompare(this._short(b.key)));
+
+    const cats = CONFIG.COMPLAINT_CATEGORIES;
+    const showOther = rows.some(r => r.other > 0);
+    const num = (v) => v > 0 ? String(v) : '<span class="cmp-zero">0</span>';
+
+    let html = '<div class="stbl-wrap"><table class="stbl">';
+    html += '<thead><tr>';
+    html += `<th>${this._esc(this.t('tbl_name'))}</th>`;
+    html += `<th class="ta-r">${this._esc(this.t('tbl_total'))}</th>`;
+    cats.forEach(c => { html += `<th class="ta-r">${this._esc(c)}</th>`; });
+    if (showOther) html += `<th class="ta-r">${this._esc(this.t('cmp_other_cat'))}</th>`;
+    html += '</tr></thead><tbody>';
+    rows.forEach(r => {
+      html += `<tr class="stbl-clickable" data-store="${this._esc(r.key)}">`;
+      html += `<td class="stbl-name">${this._esc(this._short(r.key))}</td>`;
+      html += `<td class="ta-r cmp-total-cell">${num(r.total)}</td>`;
+      cats.forEach(c => { html += `<td class="ta-r">${num(r.cats[c])}</td>`; });
+      if (showOther) html += `<td class="ta-r">${num(r.other)}</td>`;
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+    container.querySelectorAll('.stbl-clickable').forEach(tr => {
+      tr.addEventListener('click', () => this._openStoreComplaints(tr.dataset.store));
+    });
+  },
+
+  // Daftar komplain satu toko (dipakai dasbor & tabel rekap)
+  _openStoreComplaints(store) {
+    if (!store) return;
+    const rows = this._complaintsInPeriod()
+      .filter(c => c.store === store)
+      .sort((a, b) => (b.trxDate || '').localeCompare(a.trxDate || ''));
+    const title = this.t('cmp_store_title', { store: this._short(store) });
+    const body = rows.length === 0
+      ? `<div class="empty-note">${this._esc(this.t('cmp_none'))}</div>`
+      : rows.map((c, i) => this._complaintRowHtml(c, i)).join('');
+    this._showListModal(title, body, rows);
+  },
+
+  _showListModal(title, bodyHtml, rows) {
+    document.getElementById('detailTitle').textContent = title;
+    document.getElementById('detailBody').innerHTML = bodyHtml;
+    this._setupDetailTrend(null);
+    const body = document.getElementById('detailBody');
+    if (rows) {
+      body.querySelectorAll('.cmp-row').forEach(row => {
+        row.addEventListener('click', () => this._openComplaintDetail(rows[Number(row.dataset.i)]));
+      });
+    }
+    document.getElementById('detailModal').hidden = false;
+  },
+
+  _complaintRowHtml(c, i) {
+    const cat = this._canonCategory(c.category) || c.category || this.t('cmp_other_cat');
+    return `<div class="act-row cmp-row" data-i="${i == null ? '' : i}">
+      <div class="act-row-main">
+        <span class="act-date">${this._esc(this._formatDMY(c.trxDate))}</span>
+        <span class="act-name">${this._esc(c.name)}</span>
+        <span class="act-store">${this._esc(this._short(c.store))}</span>
+        <span class="act-tag act-tag-soft">${this._esc(cat)}</span>
+      </div>
+      <div class="act-row-detail">${this._esc(c.media)}${c.body ? ' · ' + this._esc(c.body.slice(0, 90)) + (c.body.length > 90 ? '…' : '') : ''}</div>
+    </div>`;
   },
 
   _renderComplaintList() {
@@ -1791,15 +2254,7 @@ const App = {
       return;
     }
     this._cmpVisible = rows;
-    el.innerHTML = rows.map((c, i) => `<div class="act-row cmp-row" data-i="${i}">
-      <div class="act-row-main">
-        <span class="act-date">${this._esc(this._formatDMY(c.trxDate))}</span>
-        <span class="act-name">${this._esc(c.name)}</span>
-        <span class="act-store">${this._esc(this._short(c.store))}</span>
-        <span class="act-tag act-tag-soft">${this._esc(c.category)}</span>
-      </div>
-      <div class="act-row-detail">${this._esc(c.media)}${c.body ? ' · ' + this._esc(c.body.slice(0, 90)) + (c.body.length > 90 ? '…' : '') : ''}</div>
-    </div>`).join('');
+    el.innerHTML = rows.map((c, i) => this._complaintRowHtml(c, i)).join('');
     el.querySelectorAll('.cmp-row').forEach(row => {
       row.addEventListener('click', () => this._openComplaintDetail(this._cmpVisible[Number(row.dataset.i)]));
     });
@@ -1879,11 +2334,11 @@ const App = {
     btn.disabled = true; btn.textContent = this.t('saving');
     try {
       await Sheets.addComplaint(row);
-      this.complaints = this.complaints.concat([row]);
+      this.complaints = this.complaints.concat([{ ...row, store: this._canonStore(row.store) }]);
       Sheets.saveList(Sheets.CACHE_KEY_COMPLAINT, this.complaints);
       document.getElementById('cmpFormModal').hidden = true;
       this._toast(this.t('cmp_saved'));
-      this._renderComplaintPage();
+      this._renderComplaintDeps();
       this.loadComplaints(false, true);
     } catch (e) {
       this._formErr('cmpFormError', this.t('cmp_save_failed') + ': ' + e.message);
@@ -1899,6 +2354,14 @@ const App = {
     return items.map((it, i) => `<div class="rank-row" data-key="${this._esc(it.key)}">
       <div class="rank-left"><span class="rank-num">${i + 1}</span><span class="rank-name">${this._esc(isBranch ? this._short(it.key) : it.key)}</span></div>
       <span class="rank-amount">${this._fmtRp(it.val)}</span>
+    </div>`).join('');
+  },
+  // Rank list untuk jumlah (komplain), bukan rupiah
+  _renderRankCount(items, isBranch) {
+    if (items.length === 0) return `<div class="empty-note">—</div>`;
+    return items.map((it, i) => `<div class="rank-row" data-key="${this._esc(it.key)}">
+      <div class="rank-left"><span class="rank-num">${i + 1}</span><span class="rank-name">${this._esc(isBranch ? this._short(it.key) : it.key)}</span></div>
+      <span class="rank-count">${it.val.toLocaleString(this._locale())}<span class="rank-count-unit">${this._esc(this.t('cmp_unit'))}</span></span>
     </div>`).join('');
   },
   _fmtRp(v) {

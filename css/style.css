@@ -1509,3 +1509,92 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
   border-top: 0.5px solid var(--line-2);
   line-height: 1.5;
 }
+
+/* ============================================================================
+   v8.3 — filter toko multi-pilih, tren di pop up detail, rekap komplain
+   ============================================================================ */
+
+/* Sub-filter Penjualan Toko: Regional | Area | Toko */
+.sub-filter-3col { grid-template-columns: 1fr 1fr; }
+.sub-filter-3col > div:last-child { grid-column: 1 / -1; }
+@media (min-width: 560px) {
+  .sub-filter-3col { grid-template-columns: 1fr 1fr 1fr; }
+  .sub-filter-3col > div:last-child { grid-column: auto; }
+}
+
+/* ---- Dropdown multi-pilih (checkbox) ---- */
+.dd-opt-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.dd-opt-check .dd-box {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1.5px solid var(--line-2);
+  background: var(--bone-2);
+  position: relative;
+}
+.dd-opt-check.checked .dd-box {
+  background: var(--sea);
+  border-color: var(--sea);
+}
+.dd-opt-check.checked .dd-box::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 1px;
+  width: 4px; height: 8px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.dd-opt-check.checked { background: transparent; color: var(--ink); font-weight: 500; }
+.dd-opt-check.checked:hover { background: var(--line); }
+.dd-bulk {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--line);
+}
+.dd-bulk button {
+  flex: 1;
+  background: var(--bone);
+  border: 0.5px solid var(--line-2);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ink-2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.dd-bulk button:hover { border-color: var(--sea); color: var(--sea); }
+
+/* ---- Tren di dalam pop up detail ---- */
+.detail-trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--line);
+}
+.detail-section-plain {
+  border-top: none;
+  margin-top: 0;
+  padding: 0;
+}
+#detailTrend[hidden] { display: none; }
+#detailTrend .chart-wrap { margin-top: 8px; }
+
+/* ---- Rekap komplain per toko ---- */
+.cmp-total-cell { font-weight: 600; }
+.stbl td.cmp-zero { color: var(--ink-3); }
+.rank-count { font-weight: 500; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.rank-count-unit { font-size: 10px; color: var(--ink-3); font-weight: 400; margin-left: 3px; }
+
+/* Kalender kegiatan inline: sedikit lebih lega dari versi modal */
+.page[data-page="activity"] .acal-cell { min-height: 52px; }

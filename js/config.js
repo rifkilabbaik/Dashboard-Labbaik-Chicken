@@ -114,6 +114,113 @@ const CONFIG = {
     { key: 'regionalMgr', header: 'Regional Manager',  type: 'text' }
   ],
 
+  // ---- Penyelarasan nama toko
+  // Data komplain memakai nama pendek ("LC Cipasir"), sedangkan data penjualan
+  // memakai nama panjang ("Labbaik Chicken - Cipasir"). Peta ini menyamakan
+  // keduanya supaya satu toko tidak terhitung dua kali.
+  STORE_ALIASES: {
+    'LC Cipasir': 'Labbaik Chicken - Cipasir',
+    'LC Cileunyi': 'Labbaik Chicken - Cileunyi',
+    'LC Pandan Wangi': 'Labbaik Chicken - Pandanwangi',
+    'LC Jatos': 'Labbaik Chicken - Jatos',
+    'LC Simpang Lima': 'Labbaik Chicken - Simpang Lima',
+    'LC Cimanuk': 'Labbaik Chicken - Cimanuk',
+    'LC Indihiang': 'Labbaik Chicken - Indihiang',
+    'LC Siliwangi': 'Labbaik Chicken - Siliwangi Tasik',
+    'LC Singaparna': 'Labbaik Chicken - Singaparna',
+    'LC Bulak Laut': 'Labbaik Chicken - Bulak Laut',
+    'LC Margaasih': 'Labbaik Chicken - Margaasih',
+    'LC Katapang': 'Labbaik Chicken - Katapang',
+    'LC Gading Tutuka': 'Labbaik Chicken - Gading Tutuka',
+    'LC Al Fathu': 'Labbaik Chicken - Al Fathu',
+    'LC Ciwidey': 'Labbaik Chicken - Ciwidey',
+    'LC Sukamenak': 'Labbaik Chicken - Sukamenak',
+    'LC Rancamanyar': 'Labbaik Chicken - Rancamanyar',
+    'LC Baleendah': 'Labbaik Chicken - Baleendah',
+    'LC Bojongsoang': 'Labbaik Chicken - Bojongsoang',
+    'LC Perumnas': 'Labbaik Chicken - Perumnas Cirebon',
+    'LC Perjuangan': 'Labbaik Chicken - Perjuangan',
+    'LC Sumber': 'Labbaik Chicken - Sumber',
+    'LC Weru': 'Labbaik Chicken - Weru',
+    'LC Sudirman': 'Labbaik Chicken - Sudirman Indramayu',
+    'LC Majalengka': 'Labbaik Chicken - Majalengka',
+    'LC Angkrek': 'Labbaik Chicken - Angkrek',
+    'LC Tegal': 'Labbaik Chicken - Tegal',
+    'LC Cibaraja Cibatu': 'Labbaik Chicken - Cibaraja',
+    'LC Palabuhan Ratu': 'Labbaik Chicken - Palabuhan Ratu',
+    'LC Caringin': 'Labbaik Chicken - Caringin',
+    'LC Cidahu': 'Labbaik Chicken - Cidahu',
+    'LC Cimanggu': 'Labbaik Chicken - Cimanggu',
+    'LC Cibinong': 'Labbaik Chicken - Cibinong',
+    'LC Cagar Alam': 'Labbaik Chicken - Cagar Alam',
+    'LC Antapani': 'Labbaik Chicken - Antapani',
+    'LC Babakan Sari': 'Labbaik Chicken - Babakan Sari',
+    'LC Derwati': 'Labbaik Chicken - Derwati',
+    'LC Batununggal': 'Labbaik Chicken - Batununggal',
+    'LC Sukagalih': 'Labbaik Chicken - Sukagalih',
+    'LC Tubagus Ismail': 'Labbaik Chicken - Tubagus Ismail',
+    'LC Ujung Berung': 'Labbaik Chicken - Ujung Berung',
+    'LC Margahayu': 'Labbaik Chicken - Margahayu',
+    'LC Banteng': 'Labbaik Chicken - Banteng',
+    'LC Ahmad Yani': 'Labbaik Chicken - Ahmad Yani',
+    'LC Munjul': 'Labbaik Chicken - Munjul',
+    'LC Galuh Mas': 'Labbaik Chicken - Galuhmas',
+    'LC Mega Regency Cikarang': 'Labbaik Chicken - Mega Regency',
+    'LC Cihampelas Cililin': 'Labbaik Chicken - Cihampelas',
+    'LC Permata Cimahi': 'Labbaik Chicken - Permata Cimahi',
+    'LC Sarimanah': 'Labbaik Chicken - Sarimanah',
+    'LC Geger Kalong': 'Labbaik Chicken - Gegerkalong',
+    'LC Bhayangkara': 'Labbaik Chicken - Bhayangkara',
+    'LC Lopang': 'Labbaik Chicken - Lopang',
+    'LC Cipocok': 'Labbaik Chicken - Cipocok',
+    'LC Ciwaru': 'Labbaik Chicken - Ciwaru',
+    'LC Kaligandu': 'Labbaik Chicken - Kaligandu',
+    'LC Pakupatan': 'Labbaik Chicken - Pakupatan',
+    'LC Ciruas': 'Labbaik Chicken - Ciruas',
+    'LC Pipitan': 'Labbaik Chicken - Pipitan',
+    'LC Kragilan': 'Labbaik Chicken - Kragilan',
+    'LC Cikande': 'Labbaik Chicken - Cikande',
+    'LC Kasemen': 'Labbaik Chicken - Kasemen',
+    'LC Ciracas': 'Labbaik Chicken - Ciracas',
+    'LC Legok': 'Labbaik Chicken - Legok',
+    'LC Kelapa Dua': 'Labbaik Chicken - Kelapa Dua',
+    'LC Baros': 'Labbaik Chicken - Baros',
+    'LC Petir': 'Labbaik Chicken - Petir',
+    'LC Warung Gunung': 'Labbaik Chicken - Warung Gunung',
+    'LC Multatuli': 'Labbaik Chicken - Multatuli',
+    'LC Juanda': 'Labbaik Chicken - Juanda',
+    'LC Ona Siliwangi': 'Labbaik Chicken - Ona Siliwangi',
+    'LC Gardu Tanjak': 'Labbaik Chicken - Gardu Tanjak',
+    'LC Majasari': 'Labbaik Chicken - Majasari',
+    'LC Taktakan': 'Labbaik Chicken - Taktakan',
+    'LC PCI': 'Labbaik Chicken - Pci',
+    'LC TCI Cilegon': 'Labbaik Chicken - Taman Cilegon Indah',
+    'LC Cibeber': 'Labbaik Chicken - Cibeber',
+    'LC Kalitimbang': 'Labbaik Chicken - Kalitimbang',
+    'LC Serdang': 'Labbaik Chicken - Serdang',
+    'LC Waringin Kurung': 'Labbaik Chicken - Waringin',
+    'LC Lebak Indah': 'Labbaik Chicken - Lebak Indah',
+    'LC Seneja': 'Labbaik Chicken - Seneja',
+    'LC Anyer': 'Labbaik Chicken - Anyer',
+    'LC BBS': 'Labbaik Chicken - Bbs',
+    'LC Kramatwatu': 'Labbaik Chicken - Kramatwatu',
+    'LC Warnasari': 'Labbaik Chicken - Warnasari',
+    'LC Krenceng': 'Labbaik Chicken - Krenceng',
+    'LC Kebon Dalem': 'Labbaik Chicken - Kebon Dalem',
+    'LC Jombang': 'Labbaik Chicken - Jombang',
+    'LC Bojonegara': 'Labbaik Chicken - Bojonegara',
+    'LC Merak': 'Labbaik Chicken - Merak',
+    'LC Grogol': 'Labbaik Chicken - Grogol',
+    'LC Temu Putih': 'Labbaik Chicken - Temu Putih',
+    'LC Tegal Cabe': 'Labbaik Chicken - Tegal Cabe',
+    'LC Menes': 'Labbaik Chicken - Menes',
+    'LC Labuan': 'Labbaik Chicken - Labuan',
+    'LC Panimbang': 'Labbaik Chicken - Panimbang',
+    'LC Bukit Barisan': 'Labbaik Chicken - Bukit Barisan',
+    'LC Rumbai': 'Labbaik Chicken - Rumbai',
+    'LC Simpang Satria (Panam)': 'Labbaik Chicken - Panam Simpang Satria',
+  },
+
   MONEY_FORMATS: {
     auto: { id: 'Otomatis', en: 'Auto' },
     full: { id: 'Penuh',    en: 'Full' }
@@ -229,6 +336,24 @@ const CONFIG = {
 
       top10: '10 Toko penjualan tertinggi', low10: '10 Toko penjualan terendah',
 
+      // 10 toko komplain tertinggi (dasbor)
+      top10_cmp: '10 Toko komplain tertinggi', cmp_unit: 'komplain',
+
+      // Filter periode kontekstual (kegiatan & komplain)
+      filter_more: 'Filter lanjutan',
+
+      // Multi-pilih toko
+      dd_all_stores: 'Semua toko', dd_n_selected: '{n} toko dipilih',
+      dd_select_all: 'Pilih semua', dd_clear: 'Kosongkan',
+
+      // Tren di dalam pop up detail
+      trend_yearly: 'Tahunan',
+
+      // Tabel komplain per toko
+      cmp_per_store: 'Komplain per toko', cmp_other_cat: 'Lainnya',
+      cmp_store_title: 'Komplain {store}',
+      sort_most: 'Terbanyak ▾', sort_least: 'Tersedikit ▾',
+
       tbl_name: 'Nama', tbl_offline: 'Offline', tbl_online: 'Online', tbl_catering: 'Catering',
       tbl_total: 'Total', tbl_growth: 'Pertumbuhan',
 
@@ -340,6 +465,19 @@ const CONFIG = {
       trend_week_prefix: 'W', trend_month_prefix: '',
 
       top10: 'Top 10 stores by sales', low10: 'Bottom 10 stores by sales',
+
+      top10_cmp: 'Top 10 stores by complaints', cmp_unit: 'complaints',
+
+      filter_more: 'More filters',
+
+      dd_all_stores: 'All stores', dd_n_selected: '{n} stores selected',
+      dd_select_all: 'Select all', dd_clear: 'Clear',
+
+      trend_yearly: 'Yearly',
+
+      cmp_per_store: 'Complaints per store', cmp_other_cat: 'Other',
+      cmp_store_title: 'Complaints · {store}',
+      sort_most: 'Most ▾', sort_least: 'Fewest ▾',
 
       tbl_name: 'Name', tbl_offline: 'Offline', tbl_online: 'Online', tbl_catering: 'Catering',
       tbl_total: 'Total', tbl_growth: 'Growth',

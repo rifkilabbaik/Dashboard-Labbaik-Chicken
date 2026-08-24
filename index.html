@@ -117,6 +117,15 @@
           <div id="dLow10" class="rank-list"></div>
         </div>
       </div>
+
+      <!-- 10 toko dengan komplain tertinggi (periode sama dengan penjualan) -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="top10_cmp">10 Toko komplain tertinggi</div>
+          <div class="panel-count" id="dTopCmpCount">—</div>
+        </div>
+        <div id="dTopCmp" class="rank-list"></div>
+      </div>
     </section>
 
     <!-- SALES: 3 sections stacked -->
@@ -145,7 +154,7 @@
           <div class="panel-label" data-i18n="sales_store">Penjualan Toko</div>
           <button class="sort-chip" id="sortSalesToko" data-mode="desc">Terbesar ▾</button>
         </div>
-        <div class="sub-filter-2col">
+        <div class="sub-filter-2col sub-filter-3col">
           <div>
             <label data-i18n="regional">Regional</label>
             <div class="dropdown-select" data-key="tokoRegional"></div>
@@ -153,6 +162,10 @@
           <div>
             <label data-i18n="area">Area</label>
             <div class="dropdown-select" data-key="tokoArea"></div>
+          </div>
+          <div>
+            <label data-i18n="store">Toko</label>
+            <div class="dropdown-select" data-key="tokoStores"></div>
           </div>
         </div>
         <div id="salesTokoTable"></div>
@@ -164,38 +177,21 @@
       <div class="panel">
         <div class="action-grid">
           <button class="btn btn-primary" id="btnActAdd" data-i18n="act_add">Tambahkan kegiatan</button>
-          <button class="btn" id="btnActCal" data-i18n="act_calendar">Kalender kegiatan</button>
         </div>
+      </div>
+
+      <!-- Kalender kegiatan tampil langsung (bukan tombol) -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-label" data-i18n="act_calendar">Kalender kegiatan</div>
+        </div>
+        <div id="actCalendar"></div>
+        <div class="acal-legend" id="actCalLegend"></div>
       </div>
 
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-label" data-i18n="act_filter">Filter kegiatan</div>
-          <button class="sort-chip" id="btnActReset" data-i18n="reset">Reset</button>
-        </div>
-        <div class="form-grid-2">
-          <div class="form-row">
-            <label data-i18n="date_range">Rentang tanggal</label>
-            <button class="range-trigger" id="actRangeTrigger" type="button"><span id="actRangeLabel">—</span></button>
-          </div>
-          <div class="form-row">
-            <label data-i18n="act_name">Nama</label>
-            <div class="dropdown-select" data-key="actFName"></div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="act_store">Toko</label>
-            <div class="dropdown-select" data-key="actFStore"></div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="act_type">Kegiatan</label>
-            <div class="dropdown-select" data-key="actFType"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-label" data-i18n="act_result">Hasil</div>
+          <div class="panel-label" data-i18n="act_list">Daftar kegiatan</div>
           <div class="panel-count" id="actCount">—</div>
         </div>
         <div id="actList"></div>
@@ -211,29 +207,13 @@
         </div>
       </div>
 
+      <!-- Rekap komplain semua toko per kategori -->
       <div class="panel">
         <div class="panel-head">
-          <div class="panel-label" data-i18n="cmp_filter">Filter komplain</div>
-          <button class="sort-chip" id="btnCmpReset" data-i18n="reset">Reset</button>
+          <div class="panel-label" data-i18n="cmp_per_store">Komplain per toko</div>
+          <button class="sort-chip" id="sortCmpStore" data-mode="desc">Terbanyak ▾</button>
         </div>
-        <div class="form-grid-2">
-          <div class="form-row">
-            <label data-i18n="date_range">Rentang tanggal</label>
-            <button class="range-trigger" id="cmpRangeTrigger" type="button"><span id="cmpRangeLabel">—</span></button>
-          </div>
-          <div class="form-row">
-            <label data-i18n="cmp_store">Nama Store</label>
-            <div class="dropdown-select" data-key="cmpFStore"></div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="cmp_media">Media Komplain</label>
-            <div class="dropdown-select" data-key="cmpFMedia"></div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="cmp_category">Kategori</label>
-            <div class="dropdown-select" data-key="cmpFCategory"></div>
-          </div>
-        </div>
+        <div id="cmpStoreTable"></div>
       </div>
 
       <div class="panel">
@@ -295,7 +275,7 @@
       <div class="panel">
         <div class="setting-label" data-i18n="setting_app">Aplikasi</div>
         <div class="info-list">
-          <div class="info-row"><span class="info-key" data-i18n="setting_version">Versi</span><span class="info-val">v8.2</span></div>
+          <div class="info-row"><span class="info-key" data-i18n="setting_version">Versi</span><span class="info-val">v8.3</span></div>
           <div class="info-row"><span class="info-key" data-i18n="setting_cache_app">Cache app</span><span class="info-val"><button class="btn" style="padding:4px 10px; font-size:11px;" id="btnClearCache" data-i18n="setting_clear_cache">Bersihkan</button></span></div>
         </div>
       </div>
@@ -336,6 +316,9 @@
         <input type="hidden" id="fTo" />
       </div>
 
+      <!-- Filter tambahan sesuai halaman (kegiatan / komplain) -->
+      <div id="filterExtra"></div>
+
       <div class="modal-actions">
         <button class="btn" id="filterCancelReset" data-i18n="cancel">Batal</button>
         <button class="btn btn-primary" id="filterOk" data-i18n="ok">OK</button>
@@ -368,6 +351,17 @@
         <div class="modal-title" id="detailTitle">Detail</div>
       </div>
       <div id="detailBody"></div>
+      <div id="detailTrend" hidden>
+        <div class="detail-trend-head">
+          <div class="detail-section detail-section-plain" data-i18n="trend_title">Tren</div>
+          <div class="trend-tabs">
+            <button class="trend-tab active" data-dtrend="daily"  data-i18n="trend_daily">Harian</button>
+            <button class="trend-tab"        data-dtrend="weekly" data-i18n="trend_weekly">Mingguan</button>
+            <button class="trend-tab"        data-dtrend="yearly" data-i18n="trend_yearly">Tahunan</button>
+          </div>
+        </div>
+        <div class="chart-wrap compact"><canvas id="detailTrendChart"></canvas></div>
+      </div>
       <div class="modal-actions"><button class="btn btn-primary" data-close-modal data-i18n="close">Tutup</button></div>
     </div>
   </div>
@@ -414,21 +408,6 @@
       <div class="modal-actions">
         <button class="btn" data-close-modal data-i18n="cancel">Batal</button>
         <button class="btn btn-primary" id="actFormSave" data-i18n="save">Simpan</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- KEGIATAN: KALENDER -->
-  <div class="modal" id="actCalModal" hidden>
-    <div class="modal-backdrop" data-close-modal></div>
-    <div class="modal-card" style="max-width:420px;">
-      <div class="modal-header">
-        <div class="modal-title" data-i18n="act_calendar">Kalender kegiatan</div>
-      </div>
-      <div id="actCalendar"></div>
-      <div class="acal-legend" id="actCalLegend"></div>
-      <div class="modal-actions">
-        <button class="btn btn-primary" data-close-modal data-i18n="close">Tutup</button>
       </div>
     </div>
   </div>
