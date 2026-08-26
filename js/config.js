@@ -242,7 +242,8 @@ const CONFIG = {
         '--sea':'#4A90B8','--sea-hover':'#3A7A9E','--sea-2':'#E6F0F6','--sea-3':'#C7DDEA',
         '--danger':'#B85A4A','--danger-bg':'#FBEAE8','--danger-fg':'#8B3A2B',
         '--warn-bg':'#FFF4E6','--warn-fg':'#8B6A20',
-        '--success':'#4A90B8','--accent-2':'#4A90B8'
+        '--success':'#4A90B8','--accent-2':'#4A90B8',
+        '--profit':'#1E9E57','--loss':'#D33B2C'
       }
     },
     putih_hijau: {
@@ -253,7 +254,8 @@ const CONFIG = {
         '--sea':'#4A9B7F','--sea-hover':'#3A7E67','--sea-2':'#EAF3EF','--sea-3':'#C6DFD3',
         '--danger':'#B85A4A','--danger-bg':'#FBEAE8','--danger-fg':'#8B3A2B',
         '--warn-bg':'#FFF4E6','--warn-fg':'#8B6A20',
-        '--success':'#4A9B7F','--accent-2':'#4A9B7F'
+        '--success':'#4A9B7F','--accent-2':'#4A9B7F',
+        '--profit':'#1E9E57','--loss':'#D33B2C'
       }
     },
     gelap_biru: {
@@ -264,7 +266,8 @@ const CONFIG = {
         '--sea':'#6BB0D9','--sea-hover':'#7CBFE6','--sea-2':'#1E3A4A','--sea-3':'#2A5570',
         '--danger':'#D97565','--danger-bg':'#3A1E1A','--danger-fg':'#F0A090',
         '--warn-bg':'#3A2F1A','--warn-fg':'#E8C888',
-        '--success':'#6BB0D9','--accent-2':'#6BB0D9'
+        '--success':'#6BB0D9','--accent-2':'#6BB0D9',
+        '--profit':'#4ED18A','--loss':'#FF6F5E'
       }
     },
     // ---- 3 warna
@@ -276,7 +279,8 @@ const CONFIG = {
         '--sea':'#4A90B8','--sea-hover':'#3A7A9E','--sea-2':'#E6F0F6','--sea-3':'#C7DDEA',
         '--danger':'#B85A4A','--danger-bg':'#FBEAE8','--danger-fg':'#8B3A2B',
         '--warn-bg':'#FFF4E6','--warn-fg':'#8B6A20',
-        '--success':'#D08B6C','--accent-2':'#D08B6C'
+        '--success':'#D08B6C','--accent-2':'#D08B6C',
+        '--profit':'#1E9E57','--loss':'#D33B2C'
       }
     },
     putih_sage_emas: {
@@ -287,7 +291,8 @@ const CONFIG = {
         '--sea':'#7A9B8B','--sea-hover':'#5F8272','--sea-2':'#EAF1ED','--sea-3':'#CFDDD5',
         '--danger':'#B85A4A','--danger-bg':'#FBEAE8','--danger-fg':'#8B3A2B',
         '--warn-bg':'#FFF4E6','--warn-fg':'#8B6A20',
-        '--success':'#C9A96E','--accent-2':'#C9A96E'
+        '--success':'#C9A96E','--accent-2':'#C9A96E',
+        '--profit':'#1E9E57','--loss':'#D33B2C'
       }
     },
     gelap_teal_salmon: {
@@ -298,7 +303,8 @@ const CONFIG = {
         '--sea':'#5DB5B5','--sea-hover':'#6EC4C4','--sea-2':'#1E3A3A','--sea-3':'#2A5555',
         '--danger':'#D97565','--danger-bg':'#3A1E1A','--danger-fg':'#F0A090',
         '--warn-bg':'#3A2F1A','--warn-fg':'#E8C888',
-        '--success':'#E8998C','--accent-2':'#E8998C'
+        '--success':'#E8998C','--accent-2':'#E8998C',
+        '--profit':'#4ED18A','--loss':'#FF6F5E'
       }
     }
   },

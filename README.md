@@ -11,6 +11,8 @@ Progressive Web App (PWA) untuk merekap penjualan, kegiatan, dan komplain multi-
 - Grafik tren: **Harian = garis, Mingguan & Bulanan = bar chart**. Ketuk grafik untuk
   popup perbandingan (Harian/Mingguan vs bulan lalu, Bulanan vs **tahun lalu**)
 - Top & Low 10 toko + **10 toko dengan komplain tertinggi** (periode sama dengan penjualan)
+- Nilai naik/turun selalu **hijau untuk untung, merah untuk rugi** di semua tema
+  (dulu ikut warna aksen tema, sehingga untung bisa tampil biru/emas/koral)
 - **Penjualan**: tiap tabel punya chip kolom **Simpel** (Offline/Online/Catering)
   ⇄ **Penuh** (Dine In, Take Away, ShopeeFood, GoFood, GrabFood, Catering, dll —
   channel yang nilainya nol tidak ditampilkan), di samping chip urutan
@@ -22,7 +24,8 @@ Progressive Web App (PWA) untuk merekap penjualan, kegiatan, dan komplain multi-
 - **Komplain** — input manual + **upload file .xlsx** langsung ke sheet `Komplain`,
   halaman berisi rekap **komplain semua toko per kategori** (urut Nama / Terbanyak /
   Tersedikit); klik barisnya untuk melihat daftar komplain toko tersebut.
-  Filter (periode + nama toko, kategori) ada di tombol filter kanan atas
+  Filter (periode + **regional, area**, nama toko, kategori) ada di tombol filter
+  kanan atas — Regional/Area/Toko saling menyesuaikan seperti di menu Penjualan
 - Nama toko data komplain & kegiatan (mis. `LC Cipasir`) otomatis diselaraskan dengan
   nama toko data penjualan (`Labbaik Chicken - Cipasir`) — lihat `STORE_ALIASES` di `js/config.js`
 - Pengaturan: tema (6 palet), bahasa (ID/EN), format uang, format text

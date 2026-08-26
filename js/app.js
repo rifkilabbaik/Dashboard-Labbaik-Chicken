@@ -13,7 +13,7 @@ const App = {
   // data kegiatan & komplain selalu selaras dengan data penjualan terbaru.
   activities: [], complaints: [],
   actFilter: { name: '', store: '', type: '' },
-  cmpFilter: { store: '', category: '' },
+  cmpFilter: { regional: '', area: '', store: '', category: '' },
   cmpStoreSort: 'desc',
   OTHER_CAT: '__other',
   _actCalYear: null, _actCalMonth: null, _actCalAnchor: null,
@@ -318,12 +318,50 @@ const App = {
       return;
     }
 
-    // Komplain
-    wrap.innerHTML = row(this.t('cmp_store'), 'fltCmpStore')
+    // Komplain — Regional & Area bertingkat, lalu mempersempit pilihan toko
+    wrap.innerHTML = row(this.t('regional'), 'fltCmpRegional')
+                   + row(this.t('area'), 'fltCmpArea')
+                   + row(this.t('cmp_store'), 'fltCmpStore')
                    + row(this.t('cmp_category'), 'fltCmpCategory');
-    const storeOpts = this._storeOptions(true);
-    Array.from(new Set(this.complaints.map(c => c.store).filter(Boolean)))
-      .forEach(s => { if (!storeOpts[s]) storeOpts[s] = this._short(s); });
+
+    const regOpts = { '': this.t('all') };
+    Array.from(new Set((this.regional || []).map(r => r.regional).filter(Boolean)))
+      .sort().forEach(r => { regOpts[r] = r; });
+    if (d.regional && !regOpts[d.regional]) regOpts[d.regional] = d.regional;
+    this._initDropdown('fltCmpRegional', regOpts, d.regional, (v) => {
+      d.regional = v;
+      // Lepas Area & Toko yang tidak lagi cocok
+      if (v && d.area && this.areaToRegional[d.area] !== v) d.area = '';
+      if (v && d.store && !this._storeInScope(d.store, v, d.area)) d.store = '';
+      this._renderFilterExtra();
+      this._updateCancelResetBtn();
+    }, { search: true });
+
+    const areaOpts = { '': this.t('all') };
+    Array.from(new Set((this.regional || [])
+      .filter(r => !d.regional || r.regional === d.regional)
+      .map(r => r.area).filter(Boolean)))
+      .sort().forEach(a => { areaOpts[a] = a; });
+    if (d.area && !areaOpts[d.area]) areaOpts[d.area] = d.area;
+    this._initDropdown('fltCmpArea', areaOpts, d.area, (v) => {
+      d.area = v;
+      // Pilih Area tanpa Regional -> Regional-nya ikut terisi
+      if (v && !d.regional && this.areaToRegional[v]) d.regional = this.areaToRegional[v];
+      if (v && d.store && !this._storeInScope(d.store, d.regional, v)) d.store = '';
+      this._renderFilterExtra();
+      this._updateCancelResetBtn();
+    }, { search: true });
+
+    const storeOpts = { '': this.t('all') };
+    this._storeList()
+      .filter(s => this._storeInScope(s, d.regional, d.area))
+      .forEach(s => { storeOpts[s] = this._short(s); });
+    // Toko dari data komplain yang belum ada di sheet Regional — hanya relevan
+    // kalau Regional/Area tidak sedang dipakai (toko itu tidak punya lingkup).
+    if (!d.regional && !d.area) {
+      Array.from(new Set(this.complaints.map(c => c.store).filter(Boolean)))
+        .forEach(s => { if (!storeOpts[s]) storeOpts[s] = this._short(s); });
+    }
     if (d.store && !storeOpts[d.store]) storeOpts[d.store] = this._short(d.store);
     this._initDropdown('fltCmpStore', storeOpts, d.store, (v) => { d.store = v; this._updateCancelResetBtn(); }, { search: true });
 
@@ -584,6 +622,14 @@ const App = {
   _sumTotal(rows) { let s = 0; for (const r of rows) s += r.total; return s; },
   _growthPct(cur, prev) { if (prev === 0) return null; return ((cur - prev) / prev) * 100; },
 
+  // Warna nilai naik/turun: untung hijau, rugi merah, tidak berubah netral.
+  // Sengaja TIDAK memakai --success/--danger karena di sebagian tema warna
+  // aksennya biru/koral/emas, sehingga untung tidak terlihat hijau.
+  _pnlColor(v) {
+    if (v == null || isNaN(v) || v === 0) return 'var(--ink-2)';
+    return v > 0 ? 'var(--profit)' : 'var(--loss)';
+  },
+
   _nextSort(mode) { return mode === 'name' ? 'desc' : mode === 'desc' ? 'asc' : 'name'; },
   _sortLabel(mode) {
     return mode === 'name' ? this.t('sort_name') : mode === 'desc' ? this.t('sort_largest') : this.t('sort_smallest');
@@ -653,7 +699,7 @@ const App = {
     if (gr === null) { gEl.textContent = '—'; gEl.style.color = 'var(--ink-2)'; }
     else {
       gEl.textContent = (gr >= 0 ? '+' : '') + gr.toFixed(1) + '%';
-      gEl.style.color = gr >= 0 ? 'var(--success)' : 'var(--danger)';
+      gEl.style.color = this._pnlColor(gr);
     }
     document.querySelector('#mcTotal .metric-hero-hint').textContent = this.t('click_for_detail');
 
@@ -721,7 +767,7 @@ const App = {
       const prev = this._sumChannels(this.filteredPrev, allChannels);
       const growth = this._growthPct(total, prev);
       const growthTxt = growth === null ? '—' : ((growth >= 0 ? '+' : '') + growth.toFixed(1) + '%');
-      const growthColor = growth === null ? 'var(--ink-2)' : (growth >= 0 ? 'var(--success)' : 'var(--danger)');
+      const growthColor = this._pnlColor(growth);
       const label = this._loc(g.label);
 
       html += `<div class="metric-group-card" data-group="${g.key}">
@@ -993,7 +1039,7 @@ const App = {
         rows.push({
           label: this._loc(c.label), val: cCur,
           sub: cGr === null ? '—' : ((cGr >= 0 ? '+' : '') + cGr.toFixed(1) + '%'),
-          subColor: cGr === null ? 'var(--ink-2)' : (cGr >= 0 ? 'var(--success)' : 'var(--danger)')
+          subColor: this._pnlColor(cGr)
         });
       });
       // conditional children (only if >0)
@@ -1005,7 +1051,7 @@ const App = {
         rows.push({
           label: this._loc(c.label), val: cCur,
           sub: cGr === null ? '—' : ((cGr >= 0 ? '+' : '') + cGr.toFixed(1) + '%'),
-          subColor: cGr === null ? 'var(--ink-2)' : (cGr >= 0 ? 'var(--success)' : 'var(--danger)')
+          subColor: this._pnlColor(cGr)
         });
       });
     }
@@ -1036,7 +1082,7 @@ const App = {
       rows.push({
         label: this._loc(ch.label), val: cCur,
         sub: cGr === null ? '—' : ((cGr >= 0 ? '+' : '') + cGr.toFixed(1) + '%'),
-        subColor: cGr === null ? 'var(--ink-2)' : (cGr >= 0 ? 'var(--success)' : 'var(--danger)')
+        subColor: this._pnlColor(cGr)
       });
     });
     this._showDetail(displayName, rows, { level, key });
@@ -1063,7 +1109,7 @@ const App = {
       else if (r.isDiff) valStr = (r.val >= 0 ? '+' : '') + this._fmtRp(Math.abs(r.val));
       else valStr = this._fmtRp(r.val);
       let color = '';
-      if (r.isGrowth || r.isDiff) color = r.val === null ? 'var(--ink-2)' : (r.val >= 0 ? 'var(--success)' : 'var(--danger)');
+      if (r.isGrowth || r.isDiff) color = this._pnlColor(r.val);
       html += `<div class="detail-row">
         <div class="detail-label">${this._esc(r.label)}</div>
         <div class="detail-val" style="color:${color}">${valStr}${r.sub ? `<div class="detail-sub" style="color:${r.subColor}">${r.sub}</div>` : ''}</div>
@@ -1329,7 +1375,7 @@ const App = {
     rows.forEach(r => {
       const gr = r.growth;
       const grTxt = gr === null ? '—' : ((gr >= 0 ? '+' : '') + gr.toFixed(1) + '%');
-      const grCol = gr === null ? 'var(--ink-2)' : (gr >= 0 ? 'var(--success)' : 'var(--danger)');
+      const grCol = this._pnlColor(gr);
       const name = isBranch ? this._short(r.key) : r.key;
       html += `<tr class="stbl-clickable" data-level="${level}" data-key="${this._esc(r.key)}"><td class="stbl-name">${this._esc(name)}</td>`;
       cols.forEach(c => {
@@ -1822,6 +1868,18 @@ const App = {
     });
     this._storeIndex = idx;
   },
+  // Apakah toko termasuk regional/area yang sedang dipilih?
+  // Toko yang tidak ada di sheet Regional dianggap di luar lingkup begitu
+  // salah satu filter dipakai.
+  _storeInScope(store, regional, area) {
+    if (!regional && !area) return true;
+    const m = this.branchMeta[store];
+    if (!m) return false;
+    if (regional && m.regional !== regional) return false;
+    if (area && m.area !== area) return false;
+    return true;
+  },
+
   _canonStore(name) {
     const raw = String(name == null ? '' : name).trim();
     if (!raw) return '';
@@ -2218,6 +2276,7 @@ const App = {
   _filteredComplaints() {
     const f = this.cmpFilter;
     return this._complaintsInPeriod().filter(c => {
+      if ((f.regional || f.area) && !this._storeInScope(c.store, f.regional, f.area)) return false;
       if (f.store && c.store !== f.store) return false;
       if (f.category) {
         const cc = this._canonCategory(c.category);
@@ -2244,7 +2303,7 @@ const App = {
     // "tersedikit" tetap bermakna. Kalau filter toko aktif, hanya toko itu.
     const f = this.cmpFilter;
     if (f.store) ensure(f.store);
-    else this._storeList().forEach(s => ensure(s));
+    else this._storeList().filter(s => this._storeInScope(s, f.regional, f.area)).forEach(s => ensure(s));
 
     this._filteredComplaints().forEach(c => {
       const g = ensure(c.store || '—');
